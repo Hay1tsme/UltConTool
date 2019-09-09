@@ -159,20 +159,35 @@ u128 getPreUsrAcc() {
 struct CProfile {
 	char name[20]; //name, bytes 13-32
 	char id[4]; //id, bytes 5 - 8, unknown generation method
-	unsigned char uk1; //unknown, byte 9, might be either 03, 04, or 0A
+	unsigned char uk1 = 0x03; //unknown, byte 9, might be either 03, 04, or 0A
 	//Gamecube controls, bytes 37 - 51, RUMble, SMasH A+B, TAP to jump, stick SENsativity
 	unsigned char gcA, gcB, gcX, gcY, gcZ, gcR, gcL, gcDPU, gcDPD, gcDPS, gcC, gcRUM, gcSMH, gcTAP, gcSEN;
+	//Pro Controller controls, bytes 52 - 67
 	unsigned char pcA, pcB, pcX, pcY, pcRS, pcL, pcR, pcZL, pcZR, pcDPU, pcDPS, pcDPD, pcRUM, pcSMH, pcTAP, pcSEN;
+	//YouCon controls, bytes 68 - 79
 	unsigned char jcDU, jcDL, jcDR, jcDD, jcSR, jcSL, jcL, jcZL, jcRUM, jcSMH, jcTAP, jcSEN;
-	unsigned char edit, end;
-	char bits[82];
-	std::string getName() {
-		
+	//Edit count and ending byte (0E)
+	unsigned char edit, end = 0x0E;
+	char raw[82];
+	
+	std::string getNameAsStr() {
+		std::string nm;
+		for (size_t i = 0; i < 20; i++) {
+			if (name[i] != 0)
+			//printf("%c", name[i]);
+				nm += name[i];
+		}
+		return nm;
 	}
 	CProfile(char pf[82]) {
-		for (int i = 0; i < 82; i++) {
-			bits[i] = pf[i];
-		}
+		for (int i = 0; i < 82; i++) 
+			raw[i] = pf[i];
+		for (int i = 0; i < 4; i++) 
+			id[i] = pf[i+4];
+		for (int i = 0; i < 20; i++) 
+			name[i] = pf[i+12];
+
+		
 	}
 
 	enum controls {
