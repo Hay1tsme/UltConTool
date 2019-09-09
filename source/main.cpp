@@ -6,7 +6,11 @@
 #include <switch.h>
 
 #define MAX_USERS 10
+#define PROFILE_LEN 82 
+#define PROFILE_OFF_START 80584
+#define PROFILE_OFF_INTERVAL 63448‬
 
+std::streamoff off = PROFILE_OFF_START;
 u64 titleID=0x01006A800016E000; //titleID of Smash Ultimate
 u128 userID=0; //Blank user to be filled
 u128 uIds[MAX_USERS];
@@ -14,6 +18,8 @@ size_t numUsrs = 0;
 FsFileSystem tmpfs;
 DIR* dir;
 std::fstream saveStr;
+char mem[PROFILE_LEN];
+char name[10];
 
 struct dirent* ent;
 struct CProfile;
@@ -69,7 +75,7 @@ Result mntSave() {
         }
     }
 	if (R_SUCCEEDED(rc)) {
-        dir = opendir("save:/save_data");//Open the "save:/" directory.
+        dir = opendir("save:/save_data");
         if(dir==NULL) {
             printf("Failed to open dir.\n");
         }
@@ -94,23 +100,19 @@ Result mntSave() {
 			printf("Failed to open save file\n");
 		}
 		else {
-			std::streamoff off = 80584;
-			char mem[82];
-			char name[10];
-			
 			printf("Save file opened successfully\n");
 			saveStr.seekg(off, std::ios::beg );
-			saveStr.read(mem, 82);
+			saveStr.read(mem, PROFILE_LEN);
 			for (int i = 0; i < 10; i++) {
 				name[i] = mem[i+12];
 			}
 			printf("Found profile, name ");
-			for (size_t i = 0; i < 10; i++) {
+			for (int i = 0; i < 10; i++) {
 				if (name[i] != 0)
 				printf("%c", name[i]);
 			}
 			printf(":\n");
-			for (size_t i = 0; i < 82; i++) {
+			for (int i = 0; i < PROFILE_LEN; i++) {
 				printf("%02x ", mem[i]);
 			}
 			printf("\n");
@@ -157,37 +159,57 @@ u128 getPreUsrAcc() {
 }
 
 struct CProfile {
-	char name[20]; //name, bytes 13-32
-	char id[4]; //id, bytes 5 - 8, unknown generation method
-	unsigned char uk1 = 0x03; //unknown, byte 9, might be either 03, 04, or 0A
-	//Gamecube controls, bytes 37 - 51, RUMble, SMasH A+B, TAP to jump, stick SENsativity
-	unsigned char gcA, gcB, gcX, gcY, gcZ, gcR, gcL, gcDPU, gcDPD, gcDPS, gcC, gcRUM, gcSMH, gcTAP, gcSEN;
-	//Pro Controller controls, bytes 52 - 67
-	unsigned char pcA, pcB, pcX, pcY, pcRS, pcL, pcR, pcZL, pcZR, pcDPU, pcDPS, pcDPD, pcRUM, pcSMH, pcTAP, pcSEN;
-	//YouCon controls, bytes 68 - 79
-	unsigned char jcDU, jcDL, jcDR, jcDD, jcSR, jcSL, jcL, jcZL, jcRUM, jcSMH, jcTAP, jcSEN;
-	//Edit count and ending byte (0E)
-	unsigned char edit, end = 0x0E;
-	char raw[82];
+	char raw[PROFILE_LEN], //raw copy of the profile
+	name[20], //profile name, bytes 13-32
+	id[4], //id, bytes 5 - 8, unknown generation method
+	uk1 = 0x03, //unknown, byte 9, might be either 03, 04, or 0A
+	gc[15], //Gamecube controls, bytes 37 - 51
+	pc[16], //Pro Controller controls, bytes 52 - 67
+	jc[12], //JoyCon controls, bytes 68 - 79
+	edit, end = 0x0E; //Edit count and ending byte (0E)
 	
 	std::string getNameAsStr() {
 		std::string nm;
-		for (size_t i = 0; i < 20; i++) {
-			if (name[i] != 0)
-			//printf("%c", name[i]);
-				nm += name[i];
+		for (char i : name) {
+			if (i != 0)
+				nm += i;
 		}
 		return nm;
 	}
-	CProfile(char pf[82]) {
-		for (int i = 0; i < 82; i++) 
+	char getControlOpt(int con, int btn) {
+		switch (con) {
+		case GC:return gc[btn];
+		case PC:return pc[btn];
+		case JC:return jc[btn];
+		default:return 0xff;	
+		}
+	}
+	void setControlOpt(int con, int btn, int opt) {
+		switch (con) {
+		case GC:gc[btn] = static_cast<char>(opt);
+			break;
+		case PC:pc[btn] = static_cast<char>(opt);
+			break;
+		case JC:jc[btn] = static_cast<char>(opt);
+			break;
+		default:break;
+		}
+	}
+
+	CProfile(char pf[PROFILE_LEN]) {
+		for (int i = 0; i < PROFILE_LEN; i++) 
 			raw[i] = pf[i];
 		for (int i = 0; i < 4; i++) 
 			id[i] = pf[i+4];
 		for (int i = 0; i < 20; i++) 
 			name[i] = pf[i+12];
-
-		
+		for (int i = 0; i < GCOFF; i++)
+			gc[i] = pf[i+GCOFF-1];
+		for (int i = 0; i < PCOFF; i++)
+			pc[i] = pf[i+PCOFF-1];
+		for (int i = 0; i < JCOFF; i++)
+			jc[i] = pf[i+JCOFF-1];
+		edit = pf[80];
 	}
 
 	enum controls {
@@ -207,5 +229,62 @@ struct CProfile {
 		LOW = 0x00,	//Stick Sensitivity only
 		MED = 0x01,	//-
 		HIGH = 0x02	//-
+	};
+	enum conType {
+		GC = 0,
+		PC = 1,
+		JC = 2
+	};
+	enum gcBtn {
+		GCOFF = 37, //Offset relative to start of profile, subtract 1 to use with arrays
+		GCL = 0,
+		GCR = 1,
+		GCZ = 2,
+		GCDPU = 3,
+		GCDPS = 4,
+		GCDPD = 5,
+		GCA = 6,
+		GCB = 7,
+		GCC = 8,
+		GCX = 9,
+		GCY = 10,
+		GCRMB = 11, //RUMble, SMasH A+B, TAP to jump, stick SENsativity
+		GCSMH = 12,
+		GCTAP = 13,
+		GCSEN = 14
+	};
+	enum pcBtn {
+		PCOFF = 52,
+		PCL = 0,
+		PCR = 1,
+		PCZL = 2,
+		PCZR = 3,
+		PCDPU = 4,
+		PCDPS = 5,
+		PCDPD = 6,
+		PCA = 7,
+		PCB = 8,
+		PCC = 9,
+		PCX = 10,
+		PCY = 11,
+		PCRMB = 12,
+		PCSMH = 13,
+		PCTAP = 14,
+		PCSEN = 15
+	};
+	enum jcBtn {
+		JCOFF = 68,
+		JCL = 0,
+		JCZL = 1,
+		JCSL = 2,
+		JCSR = 3,
+		JCDU = 4,
+		JCDL = 5,
+		JCDR = 6,
+		JCDD = 7,
+		JCRMB = 8,
+		JCSMH = 9,
+		JCTAP = 10,
+		JCSEN = 11
 	};
 };
