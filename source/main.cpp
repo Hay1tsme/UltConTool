@@ -12,6 +12,7 @@ int main(int argc, char **argv) {
 	consoleInit(NULL);
 	
 	userID = getPreUsrAcc();
+	CProfile profs[60];
 	
 	printf("Loading Ultimate Controller Tools...\n");
 	printf("Selected User: 0x%lx %lx\n", (u64)(userID>>64), (u64)userID);
@@ -19,6 +20,8 @@ int main(int argc, char **argv) {
 	if (R_FAILED(mntSave())) {
 		printf("Failed to mount save file, stopping...\n");
 	}
+	getProfiles(profs);
+	printf("\nLoaded profiles\n");
 	
 	 // Main loop
     while(appletMainLoop())
@@ -40,8 +43,24 @@ int main(int argc, char **argv) {
 	return 0;
 }
 
+void getProfiles(CProfile pfs[60]) {
+	int tmp = 0;
+	printf("Loading profiles\n");
+	saveStr.seekg(0, std::ios::beg);
+	for (int i = 0; i < MAX_PROFILES; i++) {
+		tmp = PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * i);
+		saveStr.seekg(tmp, std::ios::beg);
+		saveStr.read(mem, PROFILE_LEN);
+		if (mem[0] == 1) {
+			pfs[i] = CProfile(mem);
+			printf("Profile %u, Name: ", i);
+			std::cout << pfs[i].getNameAsString() << std::endl;
+		}
+	}
+}
+
 Result mntSave() {
-	int ret=0;
+	int ret;
 	bool found = false;
 	Result rc = fsMount_SaveData(&tmpfs, titleID, userID);
 	if (R_FAILED(rc)) {
@@ -55,21 +74,21 @@ Result mntSave() {
         }
     }
 	if (R_SUCCEEDED(rc)) {
-        dir = opendir("save:/save_data");
-        if(dir==NULL) {
-            printf("Failed to open dir.\n");
-        }
+		dir = opendir("save:/save_data");
+		if(dir==NULL) {
+			printf("Failed to open dir.\n");
+		}
 		else {
 			while ((ent = readdir(dir)) && !found)
-            {
-				if(strcmp(ent->d_name, "system_data.bin")) {
-					printf("Found save file\n");
-					found = true;
-				}
-            }
-			if(!found) {
-				rc = 1;
-				printf("Couldn't find save file.\n");
+		{
+			if(strcmp(ent->d_name, "system_data.bin")) {
+				printf("Found save file\n");
+				found = true;
+			}
+		}
+		if(!found) {
+			rc = 1;
+			printf("Couldn't find save file.\n");
 			}
 		}
 	}
@@ -81,12 +100,7 @@ Result mntSave() {
 		}
 		else {
 			printf("Save file opened successfully\n");
-			saveStr.seekg(off, std::ios::beg );
-			saveStr.read(mem, PROFILE_LEN);			
-			CProfile pf1 = CProfile(mem);
-			std::cout << "Profile 1 name: " << pf1.getNameAsStr() << std::endl;			
-			printf("GC B button set to %02hx", pf1.getControlOpt(CProfile::conType::GC, CProfile::gcBtn::GCB));
-			 
+						
 		}
 		
 	}

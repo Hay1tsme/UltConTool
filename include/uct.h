@@ -1,10 +1,11 @@
 ﻿#pragma once
-#define MAX_USERS 10
-#define PROFILE_LEN 82
-#define PROFILE_OFF_START 80584
-#define PROFILE_OFF_INTERVAL 63448‬
-#define MAX_PROFILES 60
+const int MAX_USERS = 10;
+const int PROFILE_LEN = 82;
+const int PROFILE_OFF_START = 80584;
+const int PROFILE_OFF_INTERVAL = 63448;
+const int MAX_PROFILES = 60;
 
+struct CProfile;
 std::streamoff off = PROFILE_OFF_START;
 u64 titleID=0x01006A800016E000; //titleID of Smash Ultimate
 u128 userID=0; //Blank user to be filled
@@ -16,25 +17,33 @@ std::fstream saveStr;
 char mem[PROFILE_LEN];
 char name[10];
 
-
 u128 getPreUsrAcc();
+Result mntSave();
+void getProfiles(CProfile pfs[60]);
 
 struct dirent* ent;
 struct CProfile {
 	char raw[PROFILE_LEN], //raw copy of the profile
 	name[20], //profile name, bytes 13-32
 	id[4], //id, bytes 5 - 8, unknown generation method
-	uk1 = 0x03, //unknown, byte 9, might be either 03, 04, or 0A
+	uk1 = 0x03, //unknown, byte 9, might be either < 10
 	gc[15], //Gamecube controls, bytes 37 - 51
 	pc[16], //Pro Controller controls, bytes 52 - 67
 	jc[12], //JoyCon controls, bytes 68 - 79
 	edit, end = 0x0E; //Edit count and ending byte (0E)
 	
-	std::string getNameAsStr() {
+	std::string getNameAsString() {
 		std::string nm;
+		int zc = 0;
 		for (char i : name) {
-			if (i != 0)
+			if (i != 0) {
 				nm += i;
+				zc = 0;
+			}
+			else if (zc > 1){
+				break;
+			}
+			zc++;
 		}
 		return nm;
 	}
@@ -43,7 +52,7 @@ struct CProfile {
 		case GC:return gc[btn];
 		case PC:return pc[btn];
 		case JC:return jc[btn];
-		default:return 0xff;	
+		default:return 0xff;
 		}
 	}
 	void setControlOpt(int con, int btn, int opt) {
