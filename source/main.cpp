@@ -22,6 +22,17 @@ int main(int argc, char **argv) {
 	}
 	getProfiles(profs);
 	printf("\nLoaded profiles\n");
+	profs[0].setControlOpt(CProfile::conType::GC, CProfile::GCY, CProfile::ATTACK);
+	toWrite[0] = true;
+	writeToSave(profs);
+	printf("gc: %02hx\n", profs[0].getControlOpt(CProfile::GC, CProfile::GCY));
+	printf("raw: %02hx\n", profs[0].raw[CProfile::GCY + CProfile::GCOFF]);
+	saveStr.seekg(PROFILE_OFF_START + CProfile::GCY + CProfile::GCOFF, std::ios::beg);
+	char tst;
+	saveStr.read(&tst, 1);
+	printf("file: %02hx\n", tst);
+	
+	
 	
 	 // Main loop
     while(appletMainLoop())
@@ -38,18 +49,28 @@ int main(int argc, char **argv) {
     }
 	closedir(dir);
 	saveStr.close();
+	fsdevUnmountDevice("save");
 	accountExit ();
 	consoleExit(NULL);
 	return 0;
 }
 
+void writeToSave(CProfile pfs[60]) {
+	printf("Writing profiles...\n");
+	for (int i = 0; i < 60; i++) {
+		if (toWrite[i]) {
+			printf("Writing to profile %u\n", i);
+			saveStr.seekg(PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * i), std::ios::beg);
+			saveStr.write(pfs[i].raw, PROFILE_LEN);
+		}
+	}
+}
+
 void getProfiles(CProfile pfs[60]) {
-	int tmp = 0;
 	printf("Loading profiles\n");
 	saveStr.seekg(0, std::ios::beg);
 	for (int i = 0; i < MAX_PROFILES; i++) {
-		tmp = PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * i);
-		saveStr.seekg(tmp, std::ios::beg);
+		saveStr.seekg(PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * i), std::ios::beg);
 		saveStr.read(mem, PROFILE_LEN);
 		if (mem[0] == 1) {
 			pfs[i] = CProfile(mem);

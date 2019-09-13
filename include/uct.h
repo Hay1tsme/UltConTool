@@ -16,7 +16,9 @@ DIR* dir;
 std::fstream saveStr;
 char mem[PROFILE_LEN];
 char name[10];
+bool toWrite[60] = {false};
 
+void writeToSave(CProfile pfs[60]);
 u128 getPreUsrAcc();
 Result mntSave();
 void getProfiles(CProfile pfs[60]);
@@ -58,10 +60,14 @@ struct CProfile {
 	void setControlOpt(int con, int btn, int opt) {
 		switch (con) {
 		case GC:gc[btn] = static_cast<char>(opt);
+				raw[btn + GCOFF] = gc[btn];
+				printf("\nraw + gcoff: %u\nraw:%02hx\n\n", btn + GCOFF, raw[btn + GCOFF]);
 			break;
 		case PC:pc[btn] = static_cast<char>(opt);
+			raw[btn + PCOFF] = gc[btn];
 			break;
 		case JC:jc[btn] = static_cast<char>(opt);
+			raw[btn + JCOFF] = gc[btn];
 			break;
 		default:break;
 		}
@@ -118,8 +124,8 @@ struct CProfile {
 		GCA = 6,
 		GCB = 7,
 		GCC = 8,
-		GCX = 9,
-		GCY = 10,
+		GCY = 9,
+		GCX = 10,
 		GCRMB = 11, //RUMble, SMasH A+B, TAP to jump, stick SENsativity
 		GCSMH = 12,
 		GCTAP = 13,
