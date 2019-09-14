@@ -15,26 +15,14 @@ int main(int argc, char **argv) {
 	CProfile profs[60];
 	
 	printf("Loading Ultimate Controller Tools...\n");
-	printf("Selected User: 0x%lx %lx\n", (u64)(userID>>64), (u64)userID);
-	printf("Mounting save...\n");
-	if (R_FAILED(mntSave())) {
-		printf("Failed to mount save file, stopping...\n");
-	}
+	printf("Selected User: 0x%lx %lx\n", (u64)(userID>>64), (u64)userID);	
 	getProfiles(profs);
-	printf("\nLoaded profiles\n");
-	profs[0].setControlOpt(CProfile::conType::GC, CProfile::GCY, CProfile::ATTACK);
+	printf("\nWriting Y on GameCube to be attack on Profile 0\n");
+	profs[0].setControlOpt(CProfile::GC, CProfile::GCY, CProfile::ATTACK);
 	toWrite[0] = true;
 	writeToSave(profs);
-	printf("gc: %02hx\n", profs[0].getControlOpt(CProfile::GC, CProfile::GCY));
-	printf("raw: %02hx\n", profs[0].raw[CProfile::GCY + CProfile::GCOFF]);
-	saveStr.seekg(PROFILE_OFF_START + CProfile::GCY + CProfile::GCOFF, std::ios::beg);
-	char tst;
-	saveStr.read(&tst, 1);
-	printf("file: %02hx\n", tst);
-	
-	
-	
-	 // Main loop
+
+	// Main loop
     while(appletMainLoop())
     {
         //Scan all the inputs. This should be done once for each frame
@@ -47,42 +35,69 @@ int main(int argc, char **argv) {
 
         consoleUpdate(NULL);
     }
-	closedir(dir);
-	saveStr.close();
-	fsdevUnmountDevice("save");
-	accountExit ();
+	
 	consoleExit(NULL);
 	return 0;
 }
 
-void writeToSave(CProfile pfs[60]) {
+void writeToSave(CProfile *pfs) {
+	if (R_FAILED(mntSaveDir())) {
+		printf("Failed to mount save dir, stopping...\n");
+		return;
+	}
+	save = fopen("save:/save_data/system_data.bin", "wb");
+	if (save == nullptr) {
+		printf("ERR! Failed to open system_data.bin for writing");
+		return;
+	}
 	printf("Writing profiles...\n");
 	for (int i = 0; i < 60; i++) {
 		if (toWrite[i]) {
 			printf("Writing to profile %u\n", i);
-			saveStr.seekg(PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * i), std::ios::beg);
-			saveStr.write(pfs[i].raw, PROFILE_LEN);
+			fseek(save, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * i), SEEK_SET);
+			fwrite(pfs[i].raw, PROFILE_LEN, 1, save);
 		}
+	}	
+	if (R_FAILED(fsdevCommitDevice("save"))) {
+		printf("could not commit\n");
+		fclose(save);
+		fsdevUnmountDevice("save");
+		return;
 	}
+	printf("Committed sucessfully.\n");
+	fclose(save);
+	fsdevUnmountDevice("save");
 }
 
-void getProfiles(CProfile pfs[60]) {
-	printf("Loading profiles\n");
-	saveStr.seekg(0, std::ios::beg);
+void getProfiles(CProfile *pfs) {
+	if (R_FAILED(mntSaveDir())) {
+		printf("Failed to mount save dir, stopping...\n");
+		return;
+	}
+	save = fopen("save:/save_data/system_data.bin", "rb");
+	if (save == nullptr) {
+		printf("ERR! Failed to open system_data.bin for reading");
+		return;
+	}
 	for (int i = 0; i < MAX_PROFILES; i++) {
-		saveStr.seekg(PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * i), std::ios::beg);
-		saveStr.read(mem, PROFILE_LEN);
+		fseek(save, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * i), SEEK_SET);
+		fread(mem, PROFILE_LEN, 1, save);
 		if (mem[0] == 1) {
-			pfs[i] = CProfile(mem);
+			pfs[i] = mem;
 			printf("Profile %u, Name: ", i);
 			std::cout << pfs[i].getNameAsString() << std::endl;
-		}
+			numPfs++;
+		}		
 	}
+	printf("Found %u profiles in save.\n", numPfs);
+	fclose(save);
+	fsdevUnmountDevice("save");
 }
 
-Result mntSave() {
+Result mntSaveDir() {
 	int ret;
 	bool found = false;
+	printf("Mounting save...\n");
 	Result rc = fsMount_SaveData(&tmpfs, titleID, userID);
 	if (R_FAILED(rc)) {
             printf("fsMount_SaveData() failed: 0x%x\n", rc);
@@ -112,18 +127,7 @@ Result mntSave() {
 			printf("Couldn't find save file.\n");
 			}
 		}
-	}
-	if R_SUCCEEDED(rc) {
-		saveStr.open("save:/save_data/system_data.bin", std::ios::in | std::ios::out | std::ios::binary);
-		if (!saveStr.is_open()) {
-			rc = 1;
-			printf("Failed to open save file\n");
-		}
-		else {
-			printf("Save file opened successfully\n");
-						
-		}
-		
+		closedir(dir);
 	}
 	return rc;
 }

@@ -1,4 +1,6 @@
 ﻿#pragma once
+#include <dirent.h>
+
 const int MAX_USERS = 10;
 const int PROFILE_LEN = 82;
 const int PROFILE_OFF_START = 80584;
@@ -10,18 +12,18 @@ std::streamoff off = PROFILE_OFF_START;
 u64 titleID=0x01006A800016E000; //titleID of Smash Ultimate
 u128 userID=0; //Blank user to be filled
 u128 uIds[MAX_USERS];
-size_t numUsrs = 0;
+size_t numPfs = 0;
 FsFileSystem tmpfs;
-DIR* dir;
-std::fstream saveStr;
+DIR *dir;
+FILE *save;
 char mem[PROFILE_LEN];
 char name[10];
 bool toWrite[60] = {false};
 
-void writeToSave(CProfile pfs[60]);
+void writeToSave(CProfile *pfs);
 u128 getPreUsrAcc();
-Result mntSave();
-void getProfiles(CProfile pfs[60]);
+Result mntSaveDir();
+void getProfiles(CProfile *pfs);
 
 struct dirent* ent;
 struct CProfile {
@@ -61,7 +63,6 @@ struct CProfile {
 		switch (con) {
 		case GC:gc[btn] = static_cast<char>(opt);
 				raw[btn + GCOFF] = gc[btn];
-				printf("\nraw + gcoff: %u\nraw:%02hx\n\n", btn + GCOFF, raw[btn + GCOFF]);
 			break;
 		case PC:pc[btn] = static_cast<char>(opt);
 			raw[btn + PCOFF] = gc[btn];
