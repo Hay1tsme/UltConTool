@@ -8,20 +8,16 @@
 #include "uct.h"
 
 int main(int argc, char **argv) {
-	
+	bool didWrite = false;
 	consoleInit(NULL);
 	
 	userID = getPreUsrAcc();
-	CProfile profs[60];
 	
 	printf("Loading Ultimate Controller Tools...\n");
 	printf("Selected User: 0x%lx %lx\n", (u64)(userID>>64), (u64)userID);	
 	getProfiles(profs);
-	printf("\nWriting Y on GameCube to be attack on Profile 0\n");
-	profs[0].setControlOpt(CProfile::GC, CProfile::GCY, CProfile::ATTACK);
-	toWrite[0] = true;
-	writeToSave(profs);
-
+	printf("Press - to test write");
+	
 	// Main loop
     while(appletMainLoop())
     {
@@ -30,7 +26,12 @@ int main(int argc, char **argv) {
 
         //hidKeysDown returns information about which buttons have been just pressed (and they weren't in the previous frame)
         u64 kDown = hidKeysDown(CONTROLLER_P1_AUTO);
-
+		if ((kDown & KEY_MINUS) && !didWrite) {
+			printf("\nWriting Y on GameCube to be attack on Profile 0\n");
+			profs[0].setControlOpt(CProfile::GC, CProfile::GCY, CProfile::ATTACK);
+			storeSaveFile(profs[0].raw, PROFILE_LEN, 0);
+			didWrite = true;
+		}
         if (kDown & KEY_PLUS) break; // break in order to return to hbmenu
 
         consoleUpdate(NULL);
@@ -40,65 +41,86 @@ int main(int argc, char **argv) {
 	return 0;
 }
 
-void writeToSave(CProfile *pfs) {
-	if (R_FAILED(mntSaveDir())) {
-		printf("Failed to mount save dir, stopping...\n");
-		return;
+void getProfiles(CProfile *pfs) {
+	FILE *save;
+	char mem[PROFILE_LEN];
+    if (R_FAILED(mntSaveDir())) {
+        printf("Failed to mount save dir, stopping...\n");
+        return;
+    }
+    save = fopen("save:/save_data/system_data.bin", "rb");
+    if (save == nullptr) {
+        printf("ERR! Failed to open system_data.bin for reading");
+        return;
+    }
+    for (int i = 0; i < MAX_PROFILES; i++) {
+        fseek(save, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * i), SEEK_SET);
+        fread(mem, PROFILE_LEN, 1, save);
+        if (mem[0] == 1) {
+			pfs[i] = CProfile(mem);
+            printf("Profile %u, Name: ", i);
+            std::cout << pfs[i].getNameAsString() << std::endl;
+            numPfs++;
+        }        
+    }
+    printf("Found %u profiles in save.\n", numPfs);
+    if (fclose(save) != 0) {
+	    printf("fclose failed in getProfiles");
+    }
+	if (R_FAILED(fsdevUnmountDevice("save"))) {
+		printf("fsdevUnmountDevice failed in getProfiles");
 	}
-	save = fopen("save:/save_data/system_data.bin", "wb");
-	if (save == nullptr) {
-		printf("ERR! Failed to open system_data.bin for writing");
-		return;
-	}
-	printf("Writing profiles...\n");
-	for (int i = 0; i < 60; i++) {
-		if (toWrite[i]) {
-			printf("Writing to profile %u\n", i);
-			fseek(save, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * i), SEEK_SET);
-			fwrite(pfs[i].raw, PROFILE_LEN, 1, save);
-		}
-	}	
-	if (R_FAILED(fsdevCommitDevice("save"))) {
-		printf("could not commit\n");
-		fclose(save);
-		fsdevUnmountDevice("save");
-		return;
-	}
-	printf("Committed sucessfully.\n");
-	fclose(save);
-	fsdevUnmountDevice("save");
 }
 
-void getProfiles(CProfile *pfs) {
+//yoinked from https://github.com/WerWolv/EdiZon/blob/d5e4d35d89051c134003ec6d681c10ef2cc8e365/source/helpers/save.cpp#L414
+s32 storeSaveFile(char *buffer, size_t length, int prof) {
+	FsFileSystem fs;
+
 	if (R_FAILED(mntSaveDir())) {
-		printf("Failed to mount save dir, stopping...\n");
-		return;
-	}
-	save = fopen("save:/save_data/system_data.bin", "rb");
-	if (save == nullptr) {
-		printf("ERR! Failed to open system_data.bin for reading");
-		return;
-	}
-	for (int i = 0; i < MAX_PROFILES; i++) {
-		fseek(save, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * i), SEEK_SET);
-		fread(mem, PROFILE_LEN, 1, save);
-		if (mem[0] == 1) {
-			pfs[i] = mem;
-			printf("Profile %u, Name: ", i);
-			std::cout << pfs[i].getNameAsString() << std::endl;
-			numPfs++;
-		}		
-	}
-	printf("Found %u profiles in save.\n", numPfs);
-	fclose(save);
+	printf("Failed to mount save.\n");
 	fsdevUnmountDevice("save");
+	fsFsClose(&fs);
+	return -1;
+	}
+
+	char filePath[0x100];
+
+	strcpy(filePath, "save:/");
+	strcat(filePath, "save_data/system_data.bin");
+
+
+	FILE *file = fopen(filePath, "rb+");
+
+	if (file == nullptr) {
+	printf("Failed to open file.\n");
+	fsdevUnmountDevice("save");
+	fsFsClose(&fs);
+	return -2;
+	}
+	
+	fseek(file, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * prof), SEEK_SET);
+	fwrite(buffer, length, 1, file);
+	printf("Wrote to offset %hX", ftell(file));
+	fclose(file);
+
+	if (R_FAILED(fsdevCommitDevice("save"))) {
+	printf("Committing failed.\n");
+	return -3;
+	}
+
+	fsdevUnmountDevice("save");
+	fsFsClose(&fs);
+
+	return 0;
 }
 
 Result mntSaveDir() {
+	DIR *dir;
 	int ret;
+	FsFileSystem tmpfs;
 	bool found = false;
 	printf("Mounting save...\n");
-	Result rc = fsMount_SaveData(&tmpfs, titleID, userID);
+	Result rc = fsMount_SaveData(&tmpfs, TITLE_ID, userID);
 	if (R_FAILED(rc)) {
             printf("fsMount_SaveData() failed: 0x%x\n", rc);
         }
