@@ -156,6 +156,7 @@ Result mntSaveDir() {
 
 u128 getPreUsrAcc() {
 	//from EdiZon https://github.com/WerWolv/EdiZon/blob/2decd3214f2f2187f4f9330909bb0ca662eb1e20/source/guis/gui.cpp#L623
+	//Only works if launched as a full app, otherwise black screen til it runs out of memory and crashes the system
 	AppletHolder aph;
 	AppletStorage ast;
 	AppletStorage hast1;
