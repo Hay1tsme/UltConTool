@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Web">
+      <UniqueIdentifier>{39f84388-d430-446f-ac6b-74ba1e9b6f82}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\main.cpp">
@@ -21,6 +24,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Makefile" />
+    <None Include="web\index.html">
+      <Filter>Web</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\uct.h">

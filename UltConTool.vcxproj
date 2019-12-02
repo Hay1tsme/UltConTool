@@ -109,6 +109,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Makefile" />
+    <None Include="web\index.html" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\uct.h" />

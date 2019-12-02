@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+<!--
+Author: Kevin 'Hay1tsme' Trocolli
+
+Compact, web-based control configurator for Smash Ultimate. Spits out a file that
+can be used with UltConTool to pre-load controller profiles. Good for saving time at tournaments.
+Can be used completely offline and without a web server if need be
+-->
 <head>
+    <meta charset="utf8" />
     <title>Smash Ult Profile Gen</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
           integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
@@ -10,14 +18,17 @@
             border: 1px solid black;
             padding: 2px;
         }
+
         td, th {
             text-align: center;
         }
+
         body {
             background-color: #2d2d2d;
             color: #ababab;
             padding: 20px;
         }
+
         input, select {
             border-color: #575757;
             color: #e8e6e3;
@@ -25,300 +36,463 @@
         }
     </style>
     <script type="text/javascript">
-        //TODO: Make it work
         function check() {
+            let prof = new Array(0x01, 0x00, 0x00, 0x00);
+            let name = document.getElementById("pfName").value.slice(0, 10);
+            if (name.length < 1 || name.length > 10) {
+                alert("Please enter a name, up to 10 charecters");
+                return;
+            }
 
+            //Random hex numbers
+            prof[4] = (Math.random() * 0xFF << 0);
+            prof[5] = (Math.random() * 0xFF << 0);
+            prof[6] = (Math.random() * 0xFF << 0);
+            prof[7] = (Math.random() * 0xFF << 0);
+            prof[8] = (Math.random() * 0xFF << 0);
+
+            //Filler
+            prof[9] = 0x00;
+            prof[10] = 0x00;
+            prof[11] = 0x00;
+
+            //Name
+            for (var i = 0; i < 20; i++) {
+                if (i % 2 !== 0) {
+                    prof[i + 12] = 0x00;
+                } else {
+                    prof[i + 12] = name.slice(i / 2, (i / 2) + 1).charCodeAt(0);
+                }
+            }
+
+            //Filler
+            prof[32] = 0x00;
+            prof[33] = 0x00;
+            prof[34] = 0x00;
+            prof[35] = 0x00;
+
+            //Gamecube
+            prof[36] = document.getElementById('gcl').value;
+            prof[37] = document.getElementById('gcr').value;
+            prof[38] = document.getElementById('gcz').value;
+            prof[39] = document.getElementById('gcdu').value;
+            prof[40] = document.getElementById('gcds').value;
+            prof[41] = document.getElementById('gcdd').value;
+            prof[42] = document.getElementById('gca').value;
+            prof[43] = document.getElementById('gcb').value;
+            prof[44] = document.getElementById('gcc').value;
+            prof[45] = document.getElementById('gcy').value;
+            prof[46] = document.getElementById('gcx').value;
+            if (document.getElementById('gcrum').checked)
+                prof[47] = 0x01;
+            if (document.getElementById('gcsmh').checked)
+                prof[48] = 0x01;
+            if (document.getElementById('gctap').checked)
+                prof[49] = 0x01;
+
+            var tmp = document.getElementsByName('gcsen');
+            for (i = 0; i < tmp.length; i++) {
+                if (tmp[i].checked)
+                    prof[50] = tmp[i].value;
+            }
+
+            //Pro Controller
+            prof[51] = document.getElementById('pcl').value;
+            prof[52] = document.getElementById('pcr').value;
+            prof[53] = document.getElementById('pczl').value;
+            prof[54] = document.getElementById('pczr').value;
+            prof[55] = document.getElementById('pcdu').value;
+            prof[56] = document.getElementById('pcds').value;
+            prof[57] = document.getElementById('pcdd').value;
+            prof[58] = document.getElementById('pca').value;
+            prof[59] = document.getElementById('pcb').value;
+            prof[60] = document.getElementById('pcc').value;
+            prof[61] = document.getElementById('pcy').value;
+            prof[62] = document.getElementById('pcx').value;
+            if (document.getElementById('pcrum').checked)
+                prof[63] = 0x01;
+            if (document.getElementById('pcsmh').checked)
+                prof[64] = 0x01;
+            if (document.getElementById('pctap').checked)
+                prof[65] = 0x01;
+
+            var tmp = document.getElementsByName('pcsen');
+            for (i = 0; i < tmp.length; i++) {
+                if (tmp[i].checked)
+                    prof[66] = tmp[i].value;
+            }
+
+            //JoyCon
+            prof[67] = document.getElementById('jcl').value;
+            prof[68] = document.getElementById('jczl').value;
+            prof[69] = document.getElementById('jcsl').value;
+            prof[70] = document.getElementById('jcsr').value;
+            prof[71] = document.getElementById('jcu').value;
+            prof[72] = document.getElementById('jcr').value;
+            prof[73] = document.getElementById('jcle').value;
+            prof[74] = document.getElementById('jcd').value;
+            if (document.getElementById('jcrum').checked)
+                prof[75] = 0x01;
+            if (document.getElementById('jcsmh').checked)
+                prof[76] = 0x01;
+            if (document.getElementById('jctap').checked)
+                prof[77] = 0x01;
+
+            var tmp = document.getElementsByName('jcsen');
+            for (i = 0; i < tmp.length; i++) {
+                if (tmp[i].checked)
+                    prof[78] = tmp[i].value;
+            }
+
+            //Footer
+            prof[79] = 0x00;
+            prof[80] = 0x00;
+            prof[81] = 0x0E;
+
+            // Some StackOverflow mumbo-jumbo
+            // src: https://stackoverflow.com/questions/31827901/javascript-how-to-convert-hex-data-to-binary-and-write-it-into-a-file
+            var ab = new ArrayBuffer(prof.length);
+            var ia = new Uint8Array(ab);
+            for (var i = 0; i < prof.length; i++) {
+                ia[i] = prof[i];
+            }
+
+            // src: https://gist.github.com/dreamyguy/6b4ab77d2f118adb8a63c4a03fba349d
+            const blob = new Blob([ia], { type: 'application/octet-stream' });
+            var element = document.createElement('a');
+            let blobURL = window.URL.createObjectURL(blob);
+            element.setAttribute('href', blobURL);
+            element.setAttribute('download', name + "-" + Date.now() + ".ucp");
+
+            element.style.display = 'none';
+            document.body.appendChild(element);
+
+            element.click();
+
+            document.body.removeChild(element);
+            return;
         }
     </script>
 </head>
 <body>
 <h1>Smash Ultimate Controller Profile Generator</h1>
-<label for="pfName" title="Can be up to 10 switch-legal characters" >Name:</label>
+<label for="pfName" title="Can be up to 10 switch-legal characters">Name:</label>
 <br>
 <input id="pfName" type="text" maxlength="10" required>
 <br>
 <br>
 <table>
-    <tr><th rowspan="3">Game<br>Cube</th></tr>
-    <tr>
-        <td><label for="gca">A</label></td><td><label for="gcb">B</label></td><td><label for="gcx">X</label></td>
-        <td><label for="gcy">Y</label></td><td><label for="gcl">L</label></td><td><label for="gcr">R</label></td>
-        <td colspan="2"><label for="gcz">Z</label></td><td><label for="gcc">C-Stick</label></td>
-        <td><label for="gcdu">DPad Up</label></td><td><label for="gcds">DPad Side</label></td>
-        <td><label for="gcdd">DPad Down</label></td><td><label for="gcrum">Rumble</label></td>
-        <td><label for="gcsmh">A+B Smash</label></td><td><label for="gctap">Tap Jump</label></td>
-        <td>Sensitivity</td>
-    </tr>
-    <tr>
-        <td><select id="gca">
+<tr><th rowspan="3">Game<br>Cube</th></tr>
+<tr>
+    <td><label for="gca">A</label></td><td><label for="gcb">B</label></td><td><label for="gcx">X</label></td>
+    <td><label for="gcy">Y</label></td><td><label for="gcl">L</label></td><td><label for="gcr">R</label></td>
+    <td colspan="2"><label for="gcz">Z</label></td><td><label for="gcc">C-Stick</label></td>
+    <td><label for="gcdu">DPad Up</label></td><td><label for="gcds">DPad Side</label></td>
+    <td><label for="gcdd">DPad Down</label></td><td><label for="gcrum">Rumble</label></td>
+    <td><label for="gcsmh">A+B Smash</label></td><td><label for="gctap">Tap Jump</label></td>
+    <td>Sensitivity</td>
+</tr>
+<tr>
+    <td>
+        <select id="gca">
             <option value="00" selected="selected">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04">Grab</option>
         </select></td>
-        <td><select id="gcb">
+    <td>
+        <select id="gcb">
             <option value="00">Attack</option>
             <option value="01" selected="selected">Special</option>
             <option value="02">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04">Grab</option>
         </select></td>
-        <td><select id="gcx">
+    <td>
+        <select id="gcx">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02" selected="selected">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04">Grab</option>
         </select></td>
-        <td><select id="gcy">
+    <td>
+        <select id="gcy">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02" selected="selected">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04">Grab</option>
         </select></td>
-        <td><select id="gcl">
+    <td>
+        <select id="gcl">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03" selected="selected">Sheild</option>
+            <option value="03" selected="selected">Shield</option>
             <option value="04">Grab</option>
         </select></td>
-        <td><select id="gcr">
+    <td>
+        <select id="gcr">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03" selected="selected">Sheild</option>
+            <option value="03" selected="selected">Shield</option>
             <option value="04">Grab</option>
         </select></td>
-        <td colspan="2"><select id="gcz">
+    <td colspan="2">
+        <select id="gcz">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04" selected="selected">Grab</option>
         </select></td>
-        <td><select id="gcc">
+    <td>
+        <select id="gcc">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04">Grab</option>
             <option value="05" selected="selected">Smash</option>
         </select></td>
-        <td><select id="gcdu">
+    <td>
+        <select id="gcdu">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04">Grab</option>
-            <option value="0A" selected="selected">UTaunt</option>
+            <option value="10" selected="selected">UTaunt</option>
         </select></td>
-        <td><select id="gcds">
+    <td>
+        <select id="gcds">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04">Grab</option>
-            <option value="0B" selected="selected">STaunt</option>
+            <option value="11" selected="selected">STaunt</option>
         </select></td>
-        <td><select id="gcdd">
+    <td>
+        <select id="gcdd">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04">Grab</option>
-            <option value="0C" selected="selected">DTaunt</option>
+            <option value="12" selected="selected">DTaunt</option>
         </select></td>
-        <td><input id="gcrum" type="checkbox" checked></td>
-        <td><input id="gcsmh" type="checkbox" checked></td>
-        <td><input id="gctap" type="checkbox" checked></td>
-        <td><input type="radio" id="gcsen1" name="gcsen" value="1">1&nbsp;
-            <input type="radio" id="gcsen2" name="gcsen" value="2" checked>2&nbsp;
-            <input type="radio" id="gcsen3" name="gcsen" value="3">3</td>
-    </tr>
-    <tr><th rowspan="3">Pro<br>Con</th></tr>
-    <tr>
-        <td><label for="pca">A</label></td><td><label for="pcb">B</label></td><td><label for="pcx">X</label></td>
-        <td><label for="pcy">Y</label></td><td><label for="pcl">L</label></td><td><label for="pcr">R</label></td>
-        <td><label for="pczr">zR</label></td><td><label for="pczl">zL</label></td><td><label for="pcc">Right Stick</label></td>
-        <td><label for="pcdu">DPad Up</label></td><td><label for="pcds">DPad Side</label></td>
-        <td><label for="pcdd">DPad Down</label></td><td><label for="pcrum">Rumble</label></td>
-        <td><label for="pcsmh">A+B Smash</label></td><td><label for="pctap">Tap Jump</label></td>
-        <td>Sensitivity</td>
-    </tr>
-    <tr>
-        <td><select id="pca">
+    <td><input id="gcrum" type="checkbox" checked></td>
+    <td><input id="gcsmh" type="checkbox" checked></td>
+    <td><input id="gctap" type="checkbox" checked></td>
+    <td><input type="radio" id="gcsen1" name="gcsen" value="0">1&nbsp;
+        <input type="radio" id="gcsen2" name="gcsen" value="1" checked>2&nbsp;
+        <input type="radio" id="gcsen3" name="gcsen" value="2">3</td>
+</tr>
+<tr><th rowspan="3">Pro<br>Con</th></tr>
+<tr>
+    <td><label for="pca">A</label></td><td><label for="pcb">B</label></td><td><label for="pcx">X</label></td>
+    <td><label for="pcy">Y</label></td><td><label for="pcl">L</label></td><td><label for="pcr">R</label></td>
+    <td><label for="pczr">zR</label></td><td><label for="pczl">zL</label></td><td><label for="pcc">Right Stick</label></td>
+    <td><label for="pcdu">DPad Up</label></td><td><label for="pcds">DPad Side</label></td>
+    <td><label for="pcdd">DPad Down</label></td><td><label for="pcrum">Rumble</label></td>
+    <td><label for="pcsmh">A+B Smash</label></td><td><label for="pctap">Tap Jump</label></td>
+    <td>Sensitivity</td>
+</tr>
+<tr>
+    <td>
+        <select id="pca">
             <option value="00" selected="selected">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04">Grab</option>
         </select></td>
-        <td><select id="pcb">
+    <td>
+        <select id="pcb">
             <option value="00">Attack</option>
             <option value="01" selected="selected">Special</option>
             <option value="02">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04">Grab</option>
         </select></td>
-        <td><select id="pcx">
+    <td>
+        <select id="pcx">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02" selected="selected">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04">Grab</option>
         </select></td>
-        <td><select id="pcy">
+    <td>
+        <select id="pcy">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02" selected="selected">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04">Grab</option>
         </select></td>
-        <td><select id="pcl">
+    <td>
+        <select id="pcl">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04" selected="selected">Grab</option>
         </select></td>
-        <td><select id="pcr">
+    <td>
+        <select id="pcr">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04" selected="selected">Grab</option>
         </select></td>
-        <td><select id="pczl">
+    <td>
+        <select id="pczl">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03" selected="selected">Sheild</option>
+            <option value="03" selected="selected">Shield</option>
             <option value="04">Grab</option>
         </select></td>
-        <td><select id="pczr">
+    <td>
+        <select id="pczr">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03" selected="selected">Sheild</option>
+            <option value="03" selected="selected">Shield</option>
             <option value="04">Grab</option>
         </select></td>
-        <td><select id="pcc">
+    <td>
+        <select id="pcc">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04">Grab</option>
             <option value="05" selected="selected">Smash</option>
         </select></td>
-        <td><select id="pcdu">
+    <td>
+        <select id="pcdu">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04">Grab</option>
-            <option value="0A" selected="selected">UTaunt</option>
+            <option value="10" selected="selected">UTaunt</option>
         </select></td>
-        <td><select id="pcds">
+    <td>
+        <select id="pcds">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04">Grab</option>
-            <option value="0B" selected="selected">STaunt</option>
+            <option value="11" selected="selected">STaunt</option>
         </select></td>
-        <td><select id="pcdd">
+    <td>
+        <select id="pcdd">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04">Grab</option>
-            <option value="0C" selected="selected">DTaunt</option>
+            <option value="12" selected="selected">DTaunt</option>
         </select></td>
-        <td><input id="pcrum" type="checkbox" checked></td>
-        <td><input id="pcsmh" type="checkbox" checked></td>
-        <td><input id="pctap" type="checkbox" checked></td>
-        <td><input type="radio" id="pcsen1" name="pcsen" value="1">1&nbsp;
-            <input type="radio" id="pcsen2" name="pcsen" value="2" checked>2&nbsp;
-            <input type="radio" id="pcsen3" name="pcsen" value="3">3</td>
-    </tr>
-    <tr><th rowspan="3">Joy<br>Con</th></tr>
-    <tr>
-        <td><label for="jcu">Up</label></td><td><label for="jcr">Right</label></td><td><label for="jcle">Left</label></td>
-        <td><label for="jcd">Down</label></td><td><label for="jcsr">sR</label></td><td><label for="jcsl">sL</label></td>
-        <td colspan="2"><label for="jczl">zL</label></td><td colspan="4"><label for="jcl">L</label></td>
-        <td><label for="jcrum">Rumble</label></td>
-        <td><label for="jcsmh">A+B Smash</label></td><td><label for="jctap">Tap Jump</label></td>
-        <td>Sensitivity</td>
-    </tr>
-    <tr>
-        <td><select id="jcu">
+    <td><input id="pcrum" type="checkbox" checked></td>
+    <td><input id="pcsmh" type="checkbox" checked></td>
+    <td><input id="pctap" type="checkbox" checked></td>
+    <td><input type="radio" id="pcsen1" name="pcsen" value="0">1&nbsp;
+        <input type="radio" id="pcsen2" name="pcsen" value="1" checked>2&nbsp;
+        <input type="radio" id="pcsen3" name="pcsen" value="2">3</td>
+</tr>
+<tr><th rowspan="3">Joy<br>Con</th></tr>
+<tr>
+    <td><label for="jcu">Up</label></td><td><label for="jcr">Right</label></td><td><label for="jcle">Left</label></td>
+    <td><label for="jcd">Down</label></td><td><label for="jcsr">sR</label></td><td><label for="jcsl">sL</label></td>
+    <td colspan="2"><label for="jczl">zL</label></td><td colspan="4"><label for="jcl">L</label></td>
+    <td><label for="jcrum">Rumble</label></td>
+    <td><label for="jcsmh">A+B Smash</label></td><td><label for="jctap">Tap Jump</label></td>
+    <td>Sensitivity</td>
+</tr>
+<tr>
+    <td>
+        <select id="jcu">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02" selected="selected">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04">Grab</option>
         </select></td>
-        <td><select id="jcr">
+    <td>
+        <select id="jcr">
             <option value="00" selected="selected">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04">Grab</option>
         </select></td>
-        <td><select id="jcle">
+    <td>
+        <select id="jcle">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02" selected="selected">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04">Grab</option>
         </select></td>
-        <td><select id="jcd">
+    <td>
+        <select id="jcd">
             <option value="00">Attack</option>
             <option value="01" selected="selected">Special</option>
             <option value="02">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04">Grab</option>
         </select></td>
-        <td><select id="jcsr">
+    <td>
+        <select id="jcsr">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03" selected="selected">Sheild</option>
+            <option value="03" selected="selected">Shield</option>
             <option value="04">Grab</option>
         </select></td>
-        <td><select id="jcsl">
+    <td>
+        <select id="jcsl">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03">Sheild</option>
+            <option value="03">Shield</option>
             <option value="04" selected="selected">Grab</option>
         </select></td>
-        <td colspan="2"><select id="jczl">
+    <td colspan="2">
+        <select id="jczl">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03">Sheild</option>
-            <option value="0D" selected="selected">Not Set</option>
+            <option value="03">Shield</option>
+            <option value="13" selected="selected">Not Set</option>
         </select></td>
-        <td colspan="4"><select id="jcl">
+    <td colspan="4">
+        <select id="jcl">
             <option value="00">Attack</option>
             <option value="01">Special</option>
             <option value="02">Jump</option>
-            <option value="03">Sheild</option>
-            <option value="0D" selected="selected">Not Set</option>
+            <option value="03">Shield</option>
+            <option value="13" selected="selected">Not Set</option>
         </select></td>
-        <td><input id="jcrum" type="checkbox" checked></td>
-        <td><input id="jcsmh" type="checkbox" checked></td>
-        <td><input id="jctap" type="checkbox" checked></td>
-        <td><input type="radio" id="jcsen1" name="jcsen" value="1">1&nbsp;
-            <input type="radio" id="jcsen2" name="jcsen" value="2" checked>2&nbsp;
-            <input type="radio" id="jcsen3" name="jcsen" value="3">3</td>
-    </tr>
+    <td><input id="jcrum" type="checkbox" checked></td>
+    <td><input id="jcsmh" type="checkbox" checked></td>
+    <td><input id="jctap" type="checkbox" checked></td>
+    <td><input type="radio" id="jcsen1" name="jcsen" value="0">1&nbsp;
+        <input type="radio" id="jcsen2" name="jcsen" value="1" checked>2&nbsp;
+        <input type="radio" id="jcsen3" name="jcsen" value="2">3</td>
+</tr>
 </table>
 <br>
-<input class="btn btn-primary" type="submit" value="Generate">
+<input class="btn btn-primary" id="btnSub" type="submit" onclick="check()" value="Generate">
 </body>
 </html>
