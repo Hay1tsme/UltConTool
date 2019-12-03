@@ -1,22 +1,24 @@
-#include <stdio.h>
 #include <cstring>
 #include <iostream>
 #include <fstream>
 #include <dirent.h>
 #include <switch.h>
-
+#include <vector>
+#include <stdio.h>
 #include "uct.h"
+
 
 int main(int argc, char **argv) {
 	bool didWrite = false;
 	consoleInit(NULL);
 	
 	userID = getPreUsrAcc();
+	std::vector<CProfile> files;
 	
 	printf("Loading Ultimate Controller Tools...\n");
 	printf("Selected User: 0x%lx %lx\n", (u64)(userID>>64), (u64)userID);	
 	getProfiles(profs);
-	printf("Press - to test write");
+	printf("Press - to test file load\n");
 	
 	// Main loop
     while(appletMainLoop())
@@ -27,10 +29,31 @@ int main(int argc, char **argv) {
         //hidKeysDown returns information about which buttons have been just pressed (and they weren't in the previous frame)
         u64 kDown = hidKeysDown(CONTROLLER_P1_AUTO);
 		if ((kDown & KEY_MINUS) && !didWrite) {
-			printf("\nWriting Y on GameCube to be attack on Profile 0\n");
-			profs[0].setControlOpt(CProfile::GC, CProfile::GCY, CProfile::ATTACK);
+
+			DIR* dir = opendir("../uct");
+			printf("Dir-listing for '../uct':\n");
+			char dirc[PATH_MAX] = "/uct/";
+	        while ((ent = readdir(dir)))
+	        {
+	        	std::string s(ent->d_name);
+	        	if (ent->d_name == nullptr) {
+	        		printf("nullptr");
+	        	}
+	        	else if (s.find(".ucp") != std::string::npos) {
+	        		printf("Found possible UCP file: %s\n", ent->d_name);
+	        		memcpy(&dirc[5], ent->d_name, s.length());
+	        		printf(dirc);
+	        		printf("\n");
+	        		files.push_back(loadPfFromFile(dirc));
+	        		printf("\n");
+	        	}
+	        }
+	        closedir(dir);
+	        printf("Done.\n");
+			profs[0] = files[0];
 			storeSaveFile(profs[0].raw, PROFILE_LEN, 0);
 			didWrite = true;
+			
 		}
         if (kDown & KEY_PLUS) break; // break in order to return to hbmenu
 
@@ -72,8 +95,8 @@ void getProfiles(CProfile *pfs) {
 	}
 }
 
-//yoinked from https://github.com/WerWolv/EdiZon/blob/d5e4d35d89051c134003ec6d681c10ef2cc8e365/source/helpers/save.cpp#L414
 s32 storeSaveFile(char *buffer, size_t length, int prof) {
+	//yoinked from https://github.com/WerWolv/EdiZon/blob/d5e4d35d89051c134003ec6d681c10ef2cc8e365/source/helpers/save.cpp#L414
 	FsFileSystem fs;
 
 	if (R_FAILED(mntSaveDir())) {
@@ -188,4 +211,18 @@ u128 getPreUsrAcc() {
 	appletStorageClose(&ast);
 	appletStorageClose(&hast1);
 	return outdata.UID;
+}
+
+CProfile loadPfFromFile(std::string file) {
+	char mem[PROFILE_LEN];
+	FILE* f = fopen(file.c_str(), "r");
+	if (!f) {
+		printf("Couldn't open file in loadPfFromFile");
+		CProfile a;
+		return a;
+	}
+	fread(mem, PROFILE_LEN, 1, f);
+	CProfile pf(mem);
+	fclose(f);
+	return pf;
 }

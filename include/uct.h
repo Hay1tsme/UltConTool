@@ -17,6 +17,7 @@ u128 getPreUsrAcc();
 Result mntSaveDir();
 void getProfiles(CProfile *pfs);
 s32 storeSaveFile(char *buffer, size_t length, int prof);
+CProfile loadPfFromFile(std::string file);
 
 struct dirent* ent;
 struct CProfile {
@@ -162,3 +163,4 @@ struct CProfile {
 	};
 };
 CProfile profs[60];
+//std::vector<CProfile> profs;
