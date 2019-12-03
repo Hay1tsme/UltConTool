@@ -49,9 +49,15 @@ int main(int argc, char **argv) {
 	        	}
 	        }
 	        closedir(dir);
-	        printf("Done.\n");
-			profs[0] = files[0];
-			storeSaveFile(profs[0].raw, PROFILE_LEN, 0);
+	        printf("Overwriting first %d profiles\n", sizeof(files));
+			//profs[0] = files[0];
+			for (uint16_t i = 0; i < sizeof(files); i++) {
+				printf("Overwriting %s with ", profs[i].getNameAsString().c_str());
+				profs[i] = files[i];
+				printf("%s\n", profs[i].getNameAsString().c_str());
+				storeSaveFile(profs[i].raw, PROFILE_LEN, i);
+			}
+			printf("Done");
 			didWrite = true;
 			
 		}
@@ -222,6 +228,7 @@ CProfile loadPfFromFile(std::string file) {
 		return a;
 	}
 	fread(mem, PROFILE_LEN, 1, f);
+	//TODO: Sanity checking
 	CProfile pf(mem);
 	fclose(f);
 	return pf;
