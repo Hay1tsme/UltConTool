@@ -13,11 +13,26 @@ std::streamoff off = PROFILE_OFF_START;
 u128 userID=0; //Blank user to be filled
 size_t numPfs = 0;
 
+void loadProfilesFromConsole(CProfile *pfs);
+void loadProfileFromConsole(CProfile *pf);
+void loadProfileFromFile(CProfile* pf, std::string file);
+
+bool dumpProfileToConsole(char* buffer, int index);
+bool dumpProfilesToConsole(char *buffer);
+bool dumpProfileToFile(char *buffer);
+
+void showProfilesFromConsole();
+void showProfileFromConsole(int index);
+void showProfilesFromMemory();
+void showProfileFromMemory(int index);
+void showProfileFromFile();
+
+bool checkProfileFromConsole();
+bool checkProfileFromMemory();
+bool checkProfileFromFile();
+
 u128 getPreUsrAcc();
 Result mntSaveDir();
-void getProfiles(CProfile *pfs);
-s32 storeSaveFile(char *buffer, size_t length, int prof);
-CProfile loadPfFromFile(std::string file);
 
 struct dirent* ent;
 struct CProfile {

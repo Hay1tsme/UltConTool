@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
 	
 	printf("Loading Ultimate Controller Tools...\n");
 	printf("Selected User: 0x%lx %lx\n", (u64)(userID>>64), (u64)userID);	
-	getProfiles(profs);
+	loadProfilesFromConsole(profs);
 	printf("Press - to test file load\n");
 	
 	// Main loop
@@ -29,13 +29,14 @@ int main(int argc, char **argv) {
         //hidKeysDown returns information about which buttons have been just pressed (and they weren't in the previous frame)
         u64 kDown = hidKeysDown(CONTROLLER_P1_AUTO);
 		if ((kDown & KEY_MINUS) && !didWrite) {
-
+			
 			DIR* dir = opendir("../uct");
 			printf("Dir-listing for '../uct':\n");
 			char dirc[PATH_MAX] = "/uct/";
 	        while ((ent = readdir(dir)))
 	        {
-	        	std::string s(ent->d_name);
+	        	CProfile tmp;
+	        	std::string s = ent->d_name;
 	        	if (ent->d_name == nullptr) {
 	        		printf("nullptr");
 	        	}
@@ -44,18 +45,21 @@ int main(int argc, char **argv) {
 	        		memcpy(&dirc[5], ent->d_name, s.length());
 	        		printf(dirc);
 	        		printf("\n");
-	        		files.push_back(loadPfFromFile(dirc));
+	        		loadProfileFromFile(&tmp, dirc);
+	        		files.push_back(tmp);
 	        		printf("\n");
 	        	}
+	        	memset(dirc, 0, strlen(dirc));
+	        	strncpy(dirc, "/uct/", sizeof(dirc));
 	        }
 	        closedir(dir);
-	        printf("Overwriting first %d profiles\n", sizeof(files));
+	        printf("Overwriting first %d profiles\n", files.size());
 			//profs[0] = files[0];
-			for (uint16_t i = 0; i < sizeof(files); i++) {
+			for (int i = 0; i < files.size(); i++) {
 				printf("Overwriting %s with ", profs[i].getNameAsString().c_str());
 				profs[i] = files[i];
 				printf("%s\n", profs[i].getNameAsString().c_str());
-				storeSaveFile(profs[i].raw, PROFILE_LEN, i);
+				dumpProfileToConsole(profs[i].raw, i);
 			}
 			printf("Done");
 			didWrite = true;
@@ -70,7 +74,7 @@ int main(int argc, char **argv) {
 	return 0;
 }
 
-void getProfiles(CProfile *pfs) {
+void loadProfilesFromConsole(CProfile *pfs) {
 	FILE *save;
 	char mem[PROFILE_LEN];
     if (R_FAILED(mntSaveDir())) {
@@ -94,14 +98,32 @@ void getProfiles(CProfile *pfs) {
     }
     printf("Found %u profiles in save.\n", numPfs);
     if (fclose(save) != 0) {
-	    printf("fclose failed in getProfiles");
+	    printf("fclose failed in loadProfilesFromConsole");
     }
 	if (R_FAILED(fsdevUnmountDevice("save"))) {
-		printf("fsdevUnmountDevice failed in getProfiles");
+		printf("fsdevUnmountDevice failed in loadProfilesFromConsole");
 	}
 }
 
-s32 storeSaveFile(char *buffer, size_t length, int prof) {
+void loadProfileFromConsole(CProfile *pf) {
+	//TODO: Fill out
+}
+
+void loadProfileFromFile(CProfile* pf, std::string file) {
+	char mem[PROFILE_LEN];
+	FILE* f = fopen(file.c_str(), "r");
+	if (!f) {
+		printf("Couldn't open file in loadProfileFromFile");
+		return;
+	}
+	fread(mem, PROFILE_LEN, 1, f);
+	//TODO: Sanity checking
+	CProfile pfm(mem);
+	*pf = pfm;
+	fclose(f);
+}
+
+bool dumpProfileToConsole(char* buffer, int index) {
 	//yoinked from https://github.com/WerWolv/EdiZon/blob/d5e4d35d89051c134003ec6d681c10ef2cc8e365/source/helpers/save.cpp#L414
 	FsFileSystem fs;
 
@@ -109,7 +131,7 @@ s32 storeSaveFile(char *buffer, size_t length, int prof) {
 	printf("Failed to mount save.\n");
 	fsdevUnmountDevice("save");
 	fsFsClose(&fs);
-	return -1;
+	return false;
 	}
 
 	char filePath[0x100];
@@ -124,23 +146,69 @@ s32 storeSaveFile(char *buffer, size_t length, int prof) {
 	printf("Failed to open file.\n");
 	fsdevUnmountDevice("save");
 	fsFsClose(&fs);
-	return -2;
+	return false;
 	}
 	
-	fseek(file, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * prof), SEEK_SET);
-	fwrite(buffer, length, 1, file);
-	printf("Wrote to offset %hX", ftell(file));
+	fseek(file, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * index), SEEK_SET);
+	printf("Writing to offset %hX\n", ftell(file));
+	fwrite(buffer, PROFILE_LEN, 1, file);
+	printf("Wrote to offset, now at %hX\n", ftell(file));
 	fclose(file);
 
 	if (R_FAILED(fsdevCommitDevice("save"))) {
 	printf("Committing failed.\n");
-	return -3;
+	return false;
 	}
 
 	fsdevUnmountDevice("save");
 	fsFsClose(&fs);
 
+	return true;
+}
+
+bool dumpProfilesToConsole(char *buffer) {
+	//TODO: Fill out
 	return 0;
+}
+
+bool dumpProfileToFile(char *buffer) {
+	//TODO: Fill out
+	return 0;
+}
+
+void showProfilesFromConsole() {
+	//TODO: Fill out
+}
+
+void showProfileFromConsole(int index) {
+	//TODO: Fill out
+}
+
+void showProfilesFromMemory() {
+	//TODO: Fill Out
+}
+
+void showProfileFromMemory(int index) {
+	//TODO: Fill out
+}
+
+void showProfileFromFile() {
+	//TODO: Fill out
+}
+
+bool checkProfileFromConsole() {
+	//TODO: Fill out
+	return true;
+}
+
+bool checkProfileFromMemory() {
+	//TODO: Fill out
+	return true;
+}
+
+bool checkProfileFromFile() {
+	//TODO: Fill out
+	return true;
 }
 
 Result mntSaveDir() {
@@ -219,17 +287,4 @@ u128 getPreUsrAcc() {
 	return outdata.UID;
 }
 
-CProfile loadPfFromFile(std::string file) {
-	char mem[PROFILE_LEN];
-	FILE* f = fopen(file.c_str(), "r");
-	if (!f) {
-		printf("Couldn't open file in loadPfFromFile");
-		CProfile a;
-		return a;
-	}
-	fread(mem, PROFILE_LEN, 1, f);
-	//TODO: Sanity checking
-	CProfile pf(mem);
-	fclose(f);
-	return pf;
-}
+//TODO: Function to list all loaded profiles
