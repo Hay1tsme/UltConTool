@@ -14,12 +14,12 @@ u128 userID=0; //Blank user to be filled
 size_t numPfs = 0;
 
 void loadProfilesFromConsole(CProfile *pfs);
-void loadProfileFromConsole(CProfile *pf);
-void loadProfileFromFile(CProfile* pf, std::string file);
+void loadProfileFromConsole(CProfile pf, int index);
+void loadProfileFromFile(CProfile pf, std::string file);
 
 bool dumpProfileToConsole(char* buffer, int index);
 bool dumpProfilesToConsole(char *buffer);
-bool dumpProfileToFile(char *buffer);
+bool dumpProfileToFile(char *buffer, CProfile pf);
 
 void showProfilesFromConsole();
 void showProfileFromConsole(int index);

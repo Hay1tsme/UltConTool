@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
 	        		memcpy(&dirc[5], ent->d_name, s.length());
 	        		printf(dirc);
 	        		printf("\n");
-	        		loadProfileFromFile(&tmp, dirc);
+	        		loadProfileFromFile(tmp, dirc);
 	        		files.push_back(tmp);
 	        		printf("\n");
 	        	}
@@ -83,13 +83,13 @@ void loadProfilesFromConsole(CProfile *pfs) {
     }
     save = fopen("save:/save_data/system_data.bin", "rb");
     if (save == nullptr) {
-        printf("ERR! Failed to open system_data.bin for reading");
+        printf("ERR! Failed to open system_data.bin for reading\n");
         return;
     }
     for (int i = 0; i < MAX_PROFILES; i++) {
         fseek(save, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * i), SEEK_SET);
         fread(mem, PROFILE_LEN, 1, save);
-        if (mem[0] == 1) {
+        if (mem[0] == 1 && mem[1] == 0 && mem[2] == 0 && mem[3] == 0) {
 			pfs[i] = CProfile(mem);
             printf("Profile %u, Name: ", i);
             std::cout << pfs[i].getNameAsString() << std::endl;
@@ -98,18 +98,38 @@ void loadProfilesFromConsole(CProfile *pfs) {
     }
     printf("Found %u profiles in save.\n", numPfs);
     if (fclose(save) != 0) {
-	    printf("fclose failed in loadProfilesFromConsole");
+	    printf("fclose failed in loadProfilesFromConsole\n");
     }
 	if (R_FAILED(fsdevUnmountDevice("save"))) {
-		printf("fsdevUnmountDevice failed in loadProfilesFromConsole");
+		printf("fsdevUnmountDevice failed in loadProfilesFromConsole\n");
 	}
 }
 
-void loadProfileFromConsole(CProfile *pf) {
-	//TODO: Fill out
+void loadProfileFromConsole(CProfile pf, int index) {
+	FILE *save;
+	char mem[PROFILE_LEN];
+	
+	if (R_FAILED(mntSaveDir())) {
+        printf("Failed to mount save dir, stopping...\n");
+        return;
+    }
+    save = fopen("save:/save_data/system_data.bin", "rb");
+	if (save == nullptr) {
+        printf("ERR! Failed to open system_data.bin for reading\n");
+        return;
+    }
+	fseek(save, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * index), SEEK_SET);
+	fread(mem, PROFILE_LEN, 1, save);
+	if (mem[0] == 1 && mem[1] == 0 && mem[2] == 0 && mem[3] == 0) {
+		pf = CProfile(mem);
+        printf("Found Profile named: %s\n", pf.getNameAsString().c_str());
+    }
+	else {
+		printf("No profile found at index %i (offset %hx)\n", index, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * index));
+	}
 }
 
-void loadProfileFromFile(CProfile* pf, std::string file) {
+void loadProfileFromFile(CProfile pf, std::string file) {
 	char mem[PROFILE_LEN];
 	FILE* f = fopen(file.c_str(), "r");
 	if (!f) {
@@ -119,7 +139,7 @@ void loadProfileFromFile(CProfile* pf, std::string file) {
 	fread(mem, PROFILE_LEN, 1, f);
 	//TODO: Sanity checking
 	CProfile pfm(mem);
-	*pf = pfm;
+	pf = pfm;
 	fclose(f);
 }
 
@@ -171,7 +191,7 @@ bool dumpProfilesToConsole(char *buffer) {
 	return 0;
 }
 
-bool dumpProfileToFile(char *buffer) {
+bool dumpProfileToFile(char *buffer, CProfile pf) {
 	//TODO: Fill out
 	return 0;
 }
@@ -286,5 +306,3 @@ u128 getPreUsrAcc() {
 	appletStorageClose(&hast1);
 	return outdata.UID;
 }
-
-//TODO: Function to list all loaded profiles
