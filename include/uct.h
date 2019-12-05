@@ -7,45 +7,39 @@ const int PROFILE_OFF_START = 80584;
 const int PROFILE_OFF_INTERVAL = 63448;
 const int MAX_PROFILES = 60;
 const u64 TITLE_ID=0x01006A800016E000;
+const char DEFAULT_GC_BUTTONS[15] = {03, 03, 04, 0x0A, 0x0B, 0x0C, 00, 01, 05, 02, 02, 01, 01, 01, 01};
+const char DEFAULT_PC_BUTTONS[16] = {04, 04, 03, 03, 0x0A, 0x0B, 0x0C, 00, 01, 05, 02, 02, 01, 01, 01, 01};
+const char DEFAULT_JC_BUTTONS[12] = {0x0D, 0x0D, 04, 03, 02, 00, 02, 01, 01, 01, 01, 01};
+const char INACTIVE_PROFILE[82] = {00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
+	00, 00,	00, 00, 00, 00, 00, 00, 00, 00, 00, 03, 03, 04, 0x0A, 0x0B, 0x0C, 00, 01, 05, 02, 02, 01, 01, 01, 01, 04, 04, 03, 03,
+	0x0A, 0x0B, 0x0C, 00,01, 05, 02, 02, 01, 01, 01, 01, 0x0D, 0x0D, 04, 03, 02, 00, 02, 01, 01, 01, 01, 01, 00, 00, 00};
 
 struct CProfile;
+struct dirent* ent;
+
 std::streamoff off = PROFILE_OFF_START;
 u128 userID=0; //Blank user to be filled
 size_t numPfs = 0;
 
-void loadProfilesFromConsole(CProfile *pfs);
-void loadProfileFromConsole(CProfile pf, int index);
-void loadProfileFromFile(CProfile pf, std::string file);
+inline Result mntSaveDir();
 
-bool dumpProfileToConsole(char* buffer, int index);
-bool dumpProfilesToConsole(char *buffer);
-bool dumpProfileToFile(char *buffer, CProfile pf);
-
-void showProfilesFromConsole();
-void showProfileFromConsole(int index);
-void showProfilesFromMemory();
-void showProfileFromMemory(int index);
-void showProfileFromFile();
-
-bool checkProfileFromConsole();
-bool checkProfileFromMemory();
-bool checkProfileFromFile();
-
-u128 getPreUsrAcc();
-Result mntSaveDir();
-
-struct dirent* ent;
 struct CProfile {
+	bool active = false;
 	char raw[PROFILE_LEN], //raw copy of the profile
+	header[4] = { 0 }, //Header, should be 1 0 0 0 or 0 0 0 0, sometimes different?
 	name[20]= { 0 }, //profile name, bytes 13-32
-	id[4]= { 0 }, //id, bytes 5 - 8, unknown generation method
-	uk1 = 0x03, //unknown, byte 9, might be either < 10
+	id[5]= { 0 }, //id, bytes 5 - 9, unknown generation method
 	gc[15]= { 0 }, //Gamecube controls, bytes 37 - 51
 	pc[16]= { 0 }, //Pro Controller controls, bytes 52 - 67
 	jc[12]= { 0 }, //JoyCon controls, bytes 68 - 79
-	edit, end = 0x0E; //Edit count and ending byte (0E)
+	edit = 0, //Edit count, shared across profiles, keeps track of the order in the edit menu
+	end = 0; // Ending byte, probably to track which is "in use"?
 	
 	std::string getNameAsString() {
+		// Check for inactive profile
+		if (!active) {
+			return "Inactive Profile";
+		}
 		std::string nm;
 		if (name == 0) {
 			memcpy(&name[0], &raw[12], 20);
@@ -68,7 +62,7 @@ struct CProfile {
 		case GC:return gc[btn];
 		case PC:return pc[btn];
 		case JC:return jc[btn];
-		default:return 0xff;
+		default:return '-';
 		}
 	}
 	void setControlOpt(int con, int btn, int opt) {
@@ -85,17 +79,39 @@ struct CProfile {
 		default:break;
 		}
 	}
+	void resetButtons() {
+		memcpy(&gc[0], DEFAULT_GC_BUTTONS, 15);
+		memcpy(&pc[0], DEFAULT_PC_BUTTONS, 16);
+		memcpy(&jc[0], DEFAULT_JC_BUTTONS, 12);
+	}
+	void deactivate() {
+		memcpy(&raw[0], INACTIVE_PROFILE, PROFILE_LEN);
+		memcpy(&header[0], 0, 4);
+		memcpy(&id[0], 0, 5);
+		memcpy(&gc[0], DEFAULT_GC_BUTTONS, 15);
+		memcpy(&pc[0], DEFAULT_PC_BUTTONS, 16);
+		memcpy(&jc[0], DEFAULT_JC_BUTTONS, 12);
+		memcpy(&name[0], 0, 20);
+		edit = 0;
+		end = 0;
+		active = false;
+	}
 
 	CProfile() {}
 	CProfile(char *pf) {
 		memcpy(&raw[0], &pf[0], PROFILE_LEN);
-		memcpy(&id[0], &pf[4], 4);
+		memcpy(&header[0], &pf[0], 4);
+		memcpy(&id[0], &pf[4], 5);
 		memcpy(&name[0], &pf[12], 20);
 		memcpy(&gc[0], &pf[GCOFF], 15);
 		memcpy(&pc[0], &pf[PCOFF], 16);
 		memcpy(&jc[0], &pf[JCOFF], 12);
 		edit = pf[80];
-		uk1 = pf[8];
+		end = pf[81];
+
+		if (end != 0 && header != 0) {
+			active = true;
+		}
 	}
 
 	enum controls {
@@ -178,4 +194,250 @@ struct CProfile {
 	};
 };
 CProfile profs[60];
-//std::vector<CProfile> profs;
+
+//TODO: Proper documentation
+inline Result mntSaveDir() {
+	DIR *dir;
+	int ret;
+	FsFileSystem tmpfs;
+	bool found = false;
+	printf("Mounting save...\n");
+	Result rc = fsMount_SaveData(&tmpfs, TITLE_ID, userID);
+	if (R_FAILED(rc)) {
+            printf("fsMount_SaveData() failed: 0x%x\n", rc);
+        }
+	if (R_SUCCEEDED(rc)) {
+        ret = fsdevMountDevice("save", tmpfs);
+        if (ret==-1) {
+            printf("fsdevMountDevice() failed.\n");
+            rc = ret;
+        }
+    }
+	if (R_SUCCEEDED(rc)) {
+		dir = opendir("save:/save_data");
+		if(dir==NULL) {
+			printf("Failed to open dir.\n");
+		}
+		else {
+			while ((ent = readdir(dir)) && !found) {
+			if(strcmp(ent->d_name, "system_data.bin") == 0) {
+				printf("Found save file\n");
+				found = true;
+			}
+		}
+		if(!found) {
+			rc = 1;
+			printf("Couldn't find save file.\n");
+			}
+		}
+		closedir(dir);
+	}
+	return rc;
+}
+
+inline u128 getPreUsrAcc() {
+	//from EdiZon https://github.com/WerWolv/EdiZon/blob/2decd3214f2f2187f4f9330909bb0ca662eb1e20/source/guis/gui.cpp#L623
+	//Only works if launched as a full app, otherwise black screen til it runs out of memory and crashes the system
+	AppletHolder aph;
+	AppletStorage ast;
+	AppletStorage hast1;
+	LibAppletArgs args;
+	u8 indata[0xA0] = { 0 };
+	
+	struct UserReturnData{
+	      u64 result;
+	      u128 UID;
+	  } PACKED;
+	
+	struct UserReturnData outdata;
+	
+	indata[0x96] = 1;
+	appletCreateLibraryApplet(&aph, AppletId_playerSelect, LibAppletMode_AllForeground);
+	libappletArgsCreate(&args, 0);
+	libappletArgsPush(&args, &aph);
+	appletCreateStorage(&hast1, 0xA0);
+	appletStorageWrite(&hast1, 0, indata, 0xA0);
+	appletHolderPushInData(&aph, &hast1);
+	appletHolderStart(&aph);
+
+	while (appletHolderWaitInteractiveOut(&aph));
+
+	appletHolderJoin(&aph);
+	appletHolderPopOutData(&aph, &ast);
+	appletStorageRead(&ast, 0, &outdata, 24);
+	appletHolderClose(&aph);
+	appletStorageClose(&ast);
+	appletStorageClose(&hast1);
+	return outdata.UID;
+}
+
+inline void loadProfilesFromConsole(CProfile *pfs) {
+	FILE *save;
+	char mem[PROFILE_LEN];
+    if (R_FAILED(mntSaveDir())) {
+        printf("Failed to mount save dir, stopping...\n");
+        return;
+    }
+    save = fopen("save:/save_data/system_data.bin", "rb");
+    if (save == nullptr) {
+        printf("ERR! Failed to open system_data.bin for reading\n");
+        return;
+    }
+    for (int i = 0; i < MAX_PROFILES; i++) {
+        fseek(save, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * i), SEEK_SET);
+        fread(mem, PROFILE_LEN, 1, save);
+        if (mem[0] == 1 && mem[1] == 0 && mem[2] == 0 && mem[3] == 0) {
+			pfs[i] = CProfile(mem);
+            //printf("Profile %u, Name: %s\n", i, pfs[i].getNameAsString());
+            numPfs++;
+        }        
+    }
+    printf("Found %lu profiles in save.\n", numPfs);
+    if (fclose(save) != 0) {
+	    printf("fclose failed in loadProfilesFromConsole\n");
+    }
+	if (R_FAILED(fsdevUnmountDevice("save"))) {
+		printf("fsdevUnmountDevice failed in loadProfilesFromConsole\n");
+	}
+}
+
+inline void loadProfileFromConsole(CProfile pf, int index) {
+	FILE *save;
+	char mem[PROFILE_LEN];
+	
+	if (R_FAILED(mntSaveDir())) {
+        printf("Failed to mount save dir, stopping...\n");
+        return;
+    }
+    save = fopen("save:/save_data/system_data.bin", "rb");
+	if (save == nullptr) {
+        printf("ERR! Failed to open system_data.bin for reading\n");
+        return;
+    }
+	fseek(save, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * index), SEEK_SET);
+	fread(mem, PROFILE_LEN, 1, save);
+	if (mem[0] == 1 && mem[1] == 0 && mem[2] == 0 && mem[3] == 0) {
+		pf = CProfile(mem);
+        printf("Found Profile named: %s\n", pf.getNameAsString().c_str());
+    }
+	else {
+		printf("No profile found at index %i (offset %hx)\n", index, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * index));
+	}
+}
+
+inline void loadProfileFromFile(CProfile pf, std::string file) {
+	char mem[PROFILE_LEN];
+	FILE* f = fopen(file.c_str(), "r");
+	if (!f) {
+		printf("Couldn't open file in loadProfileFromFile");
+		return;
+	}
+	fread(mem, PROFILE_LEN, 1, f);
+	//TODO: Sanity checking
+	CProfile pfm(mem);
+	pf = pfm;
+	fclose(f);
+}
+
+inline bool dumpProfileToConsole(char* buffer, int index) {
+	//yoinked from https://github.com/WerWolv/EdiZon/blob/d5e4d35d89051c134003ec6d681c10ef2cc8e365/source/helpers/save.cpp#L414
+	FsFileSystem fs;
+
+	if (R_FAILED(mntSaveDir())) {
+	printf("Failed to mount save.\n");
+	fsdevUnmountDevice("save");
+	fsFsClose(&fs);
+	return false;
+	}
+
+	char filePath[0x100];
+
+	strcpy(filePath, "save:/");
+	strcat(filePath, "save_data/system_data.bin");
+
+
+	FILE *file = fopen(filePath, "rb+");
+
+	if (file == nullptr) {
+	printf("Failed to open file.\n");
+	fsdevUnmountDevice("save");
+	fsFsClose(&fs);
+	return false;
+	}
+	
+	fseek(file, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * index), SEEK_SET);
+	printf("Writing to offset %hX\n", ftell(file));
+	fwrite(buffer, PROFILE_LEN, 1, file);
+	printf("Wrote to offset, now at %hX\n", ftell(file));
+	fclose(file);
+
+	if (R_FAILED(fsdevCommitDevice("save"))) {
+	printf("Committing failed.\n");
+	return false;
+	}
+
+	fsdevUnmountDevice("save");
+	fsFsClose(&fs);
+
+	return true;
+}
+
+inline bool dumpProfilesToConsole(char *buffer) {
+	//TODO: Fill out
+	return 0;
+}
+
+inline bool dumpProfileToFile(char *buffer, CProfile pf) {
+	//TODO: Fill out
+	return 0;
+}
+
+inline void showProfilesFromConsole() {
+	//TODO: Fill out
+}
+
+inline void showProfileFromConsole(int index) {
+	//TODO: Fill out
+}
+
+inline void showProfilesFromMemory() {
+	//TODO: Fill Out
+	for(int i = 0; i < MAX_PROFILES; i++) {
+		if (profs[i].active == true) {
+			printf("Found loaded profile in slot %u named %s\n", i, profs[i].getNameAsString().c_str());
+		}
+	}
+}
+
+inline void showProfileFromMemory(int index) {
+	//TODO: Fill out
+}
+
+inline void showProfileFromFile() {
+	//TODO: Fill out
+}
+
+inline bool checkProfileFromConsole() {
+	//TODO: Fill out
+	return true;
+}
+
+inline bool checkProfileFromMemory() {
+	//TODO: Fill out
+	return true;
+}
+
+inline bool checkProfileFromFile() {
+	//TODO: Fill out
+	return true;
+}
+
+inline bool clearProfilesFromConsole() {
+	//TODO: Fill in
+	return true;
+}
+
+inline bool clearProfileFromConsole() {
+	//TODO: Fill in
+	return true;
+}
