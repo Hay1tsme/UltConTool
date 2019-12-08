@@ -13,6 +13,11 @@ int main(int argc, char **argv) {
 	consoleInit(NULL);
 	userID = getPreUsrAcc();
 	
+	//If the user presses B on the profile select, quit the application gracefully
+	if (userID == 0) {
+		consoleExit(NULL);
+		return 0;
+	}
 	printf("Loading Ultimate Controller Tools...\n");
 	printf("Selected User: 0x%lu %lu\n", (u64)(userID>>64), (u64)userID);	
 	loadProfilesFromConsole(profs);

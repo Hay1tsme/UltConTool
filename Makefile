@@ -45,8 +45,8 @@ INCLUDES	:=	include
 #ROMFS		:=	romfs
 ICON		:= icon.jpg
 APP_AUTHOR	:= Hay1tsme
-APP_TITLE	:= Ultimate Controller Tools
-APP_VERSION	:= 0.0.1
+APP_TITLE	:= Ultimate Controller Tool Demos
+APP_VERSION	:= 0.1.0
 #---------------------------------------------------------------------------------
 # options for code generation
 #---------------------------------------------------------------------------------
