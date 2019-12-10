@@ -18,10 +18,16 @@ int main(int argc, char **argv) {
 		consoleExit(NULL);
 		return 0;
 	}
+	if (R_FAILED(mntSaveDir())) {
+        printf("Failed to mount save dir, stopping...\n");
+		consoleExit(NULL);
+        return 0;
+    }
 	printf("Loading Ultimate Controller Tools...\n");
 	printf("Selected User: 0x%lu %lu\n", (u64)(userID>>64), (u64)userID);	
 	loadProfilesFromConsole(profs);
 	showProfilesFromMemory();
+	//TODO: Create more demos and assign them to different buttons
 	printf("Press - to demo loading UCPs and writing them to save file\nPress + to exit");
 	
 	// Main loop
@@ -50,7 +56,7 @@ void demoReadUCPAndWriteSave() {
 	DIR* dir = opendir("../uct");
 	printf("Dir-listing for '../uct':\n");
 	char dirc[PATH_MAX] = "/uct/";
-	
+	struct dirent* ent;
     while ((ent = readdir(dir)))
     {
         CProfile tmp;

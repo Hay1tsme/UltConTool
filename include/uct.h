@@ -2,7 +2,9 @@
 #include <dirent.h>
 #include <switch.h>
 #include <stdio.h>
+#include <chrono>
 #include <cstring>
+#include <ctime>
 #include <fstream>
 
 const int MAX_USERS = 10;
@@ -18,14 +20,18 @@ const char INACTIVE_PROFILE[82] = {00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 0
 	00, 00,	00, 00, 00, 00, 00, 00, 00, 00, 00, 03, 03, 04, 0x0A, 0x0B, 0x0C, 00, 01, 05, 02, 02, 01, 01, 01, 01, 04, 04, 03, 03,
 	0x0A, 0x0B, 0x0C, 00,01, 05, 02, 02, 01, 01, 01, 01, 0x0D, 0x0D, 04, 03, 02, 00, 02, 01, 01, 01, 01, 01, 00, 00, 00};
 
-struct CProfile;
-struct dirent* ent;
-
 std::streamoff off = PROFILE_OFF_START;
 u128 userID=0; //Blank user to be filled
 size_t numPfs = 0;
 
-inline Result mntSaveDir();
+enum PROFILE_CHECK_CODES {
+	GOOD_PROFILE = 0,
+	BAD_HEAD = 1,
+	BAD_NAME = 2,
+	BAD_GC = 4,
+	BAD_PC = 8,
+	BAD_JC = 16
+};
 
 struct CProfile {
 	bool active = false;
@@ -200,11 +206,12 @@ struct CProfile {
 CProfile profs[60];
 
 /**
- * Mounts the save directory for read/write ops
+ * @details Mounts the save directory for read/write ops
  */
 inline Result mntSaveDir() {
 	DIR *dir;
 	int ret;
+	struct dirent* ent;
 	FsFileSystem tmpfs;
 	bool found = false;
 	printf("Mounting save...\n");
@@ -242,11 +249,10 @@ inline Result mntSaveDir() {
 }
 
 /**
- * Launches the profile selector to get user accounts
+ * @details Launches the profile selector to get user accounts
+ * copied from EdiZon https://github.com/WerWolv/EdiZon/blob/2decd3214f2f2187f4f9330909bb0ca662eb1e20/source/guis/gui.cpp#L623
  */
 inline u128 getPreUsrAcc() {
-	//from EdiZon https://github.com/WerWolv/EdiZon/blob/2decd3214f2f2187f4f9330909bb0ca662eb1e20/source/guis/gui.cpp#L623
-	//Only works if launched as a full app, otherwise black screen til it runs out of memory and crashes the system
 	AppletHolder aph;
 	AppletStorage ast;
 	AppletStorage hast1;
@@ -281,17 +287,72 @@ inline u128 getPreUsrAcc() {
 }
 
 /**
- * Loads controller profiles from the console into memory
+ * Sanity checks a controller profile
+ * @param pf Raw char string of the profile to check
+ * @return A bitmask that will be nonzero if there's a problem
+ */
+inline bool checkProfile(char* pf) {
+	//TODO: Test
+	unsigned char mask{0b0000'0000};
+	if (pf[0] != 1 && pf[0] != 0) {
+		mask |= BAD_HEAD;
+	}
+	for (int i = 12; i < 32; i++) {
+		if (pf[i] < 32) {
+			mask |= BAD_NAME;
+			break;
+		}
+	}
+	for(int i = CProfile::GCOFF; i < CProfile::PCOFF; i++) {
+		if (pf[i] > 5) {
+			if (!(i >=40 && i <= 42) && !(pf[i] >= 10 && pf[i] <= 12)) {
+				mask |= BAD_GC;
+			}
+		}
+	}
+	for(int i = CProfile::PCOFF; i < CProfile::JCOFF; i++) {
+		if (pf[i] > 5) {
+			if (!(i >=55 && i <= 57) && !(pf[i] >= 10 && pf[i] <= 12)) {
+				mask |= BAD_PC;
+			}
+		}
+	}
+	for(int i = CProfile::JCOFF; i < 79; i++) {
+		if (pf[i] > 5) {
+			if (!(i == 67 || i == 68) && pf[i] != 13) {
+				mask |= BAD_JC;
+			}
+		}
+	}
+	if (mask & GOOD_PROFILE) {
+		return true;
+	}
+	printf("Profile has the following errors:\n");
+		if (mask & BAD_HEAD)
+			printf("Header\n");
+		if (mask & BAD_NAME)
+			printf("Name\n");
+		if (mask & BAD_GC)
+			printf("Gamecube Controller Layout\n");
+		if (mask & BAD_PC)
+			printf("Pro Controller Layout\n");
+		if (mask & BAD_JC)
+			printf("Joycon Layout\n");
+		printf("Here's a dump:\n");
+		for (int i = 0; i > sizeof(pf); i++) {
+			printf("%hX ", pf[i]);
+		}
+		printf("\n\n");
+	return false;
+}
+
+/**
+ * @details Loads controller profiles from the console into memory
  * @param pfs CProfile array to write the profiles to
  */
 inline void loadProfilesFromConsole(CProfile *pfs) {
-	FILE *save;
 	char mem[PROFILE_LEN];
-    if (R_FAILED(mntSaveDir())) {
-        printf("Failed to mount save dir, stopping...\n");
-        return;
-    }
-    save = fopen("save:/save_data/system_data.bin", "rb");
+    FILE* save = fopen("save:/save_data/system_data.bin", "rb");
     if (save == nullptr) {
         printf("ERR! Failed to open system_data.bin for reading\n");
         return;
@@ -315,7 +376,7 @@ inline void loadProfilesFromConsole(CProfile *pfs) {
 }
 
 /**
- * Loads a controller profile from the console into memory
+ * @details Loads a controller profile from the console into memory
  * @param pf CProfile to write the profile to
  * @param index index of the profile to get, must be < 60
  */
@@ -324,14 +385,9 @@ inline void loadProfileFromConsole(CProfile pf, int index) {
 		printf("ERROR @ dumpProfileToConsole: System cannot hold more then %x profiles, but index %x was requested", MAX_PROFILES, index);
 		return;
 	}
-	FILE *save;
 	char mem[PROFILE_LEN];
 	
-	if (R_FAILED(mntSaveDir())) {
-        printf("Failed to mount save dir, stopping...\n");
-        return;
-    }
-    save = fopen("save:/save_data/system_data.bin", "rb");
+    FILE* save = fopen("save:/save_data/system_data.bin", "rb");
 	if (save == nullptr) {
         printf("ERR! Failed to open system_data.bin for reading\n");
         return;
@@ -348,7 +404,7 @@ inline void loadProfileFromConsole(CProfile pf, int index) {
 }
 
 /**
- * Loads a UCP controller profile file from the uct directory on the SD card to memory
+ * @details Loads a UCP controller profile file from the uct directory on the SD card to memory
  * @param pf CProfile to write the profile to
  * @param file The UCP file to load
  */
@@ -360,20 +416,22 @@ inline void loadProfileFromFile(CProfile pf, std::string file) {
 		return;
 	}
 	fread(mem, PROFILE_LEN, 1, f);
-	//TODO: Sanity checking
-	CProfile pfm(mem);
-	pf = pfm;
 	fclose(f);
+
+	//Sanity checking
+	if(checkProfile(mem)) {
+		pf = CProfile(mem);
+	}
 }
 
-/**Dumps all profiles from memory to the console
+/**
+ *	@details Dumps all profiles from memory to the console
+ *	copied from https://github.com/WerWolv/EdiZon/blob/d5e4d35d89051c134003ec6d681c10ef2cc8e365/source/helpers/save.cpp#L414
  *	@param buffer Raw profile bits to write
  *	@param index What index to write the buffer to
  *	@return true on success, false on fail with error printf'd
  */
 inline bool dumpProfileToConsole(char* buffer, int index) {
-	//yoinked from https://github.com/WerWolv/EdiZon/blob/d5e4d35d89051c134003ec6d681c10ef2cc8e365/source/helpers/save.cpp#L414
-
 	//Prevent writing to profiles beyond the max of 60
 	if (index > MAX_PROFILES) {
 		printf("ERROR @ dumpProfileToConsole: System cannot hold more then %x profiles, but index %x was requested", MAX_PROFILES, index);
@@ -420,7 +478,8 @@ inline bool dumpProfileToConsole(char* buffer, int index) {
 	return true;
 }
 
-/**Dumps all profiles from memory to the console
+/**
+ *	@details Dumps all profiles from memory to the console
  *	@param pfs Array of CProfiles to write
  *	@return true on success, false on fail with error printf'd
  */
@@ -470,36 +529,34 @@ inline bool dumpProfilesToConsole(CProfile* pfs) {
 }
 
 /**
- * Dumps a profile to a UCP file. Filename is generated based of profile name
- * and the timestamp of hwen the file was created
+ *@details  Dumps a profile to a UCP file. Filename is generated based of profile name
+ * and the timestamp of when the file was created
  * @param pf Profile to dump to file
  * @return true on success, false on fail with error printf'd
  */
-inline bool dumpProfileToFile(CProfile pf) {
-	//TODO: Fill out
+inline bool dumpProfileToFile(CProfile pf, std::string file = "") {
+	//TODO: Test
+	//Check to see if file exists. If yes, overwrite, if not, create new file with name
+	//If no name specified, generate one
+	if (file == "") {
+		auto tmp = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+		file = pf.getNameAsString() + "-" + reinterpret_cast<char*>(tmp);
+	}
+	FILE* f = fopen(file.c_str(), "wb");
+	if (!f) {
+		printf("Failed to open %s for writing in dumpProfileToFile", file.c_str());
+		return false;
+	}
+	fwrite(pf.raw, sizeof(char), PROFILE_LEN, f);
+	fclose(f);
 	return true;
 }
 
 /**
- * Prints info about all profiles stored on the save file
- */
-inline void showProfilesFromConsole() {
-	//TODO: Fill out
-}
-
-/**
- * Prints info about a profile stored on the save file
- * @param index index of profile to show
- */
-inline void showProfileFromConsole(int index) {
-	//TODO: Fill out
-}
-
-/**
- * Prints info about all profiles loaded into memory
+ * @details Prints info about all profiles loaded into memory
  */
 inline void showProfilesFromMemory() {
-	//TODO: Fill Out
+	//TODO: Test
 	for(int i = 0; i < MAX_PROFILES; i++) {
 		if (profs[i].active == true) {
 			printf("Found loaded profile in slot %u named %s\n", i, profs[i].getNameAsString().c_str());
@@ -508,65 +565,31 @@ inline void showProfilesFromMemory() {
 }
 
 /**
- * Prints info about a profile loaded into memory
- * @param index index of profile to show
- */
-inline void showProfileFromMemory(int index) {
-	//TODO: Fill out
-}
-
-/**
- * Prints info about a profile from a specified file
+ * @details Prints info about a profile from a specified file
  * @param file File to show info about
  */
 inline void showProfileFromFile(std::string file) {
-	//TODO: Fill out
+	//TODO: Test
+	FILE* f = fopen(file.c_str(), "rb");
+	char tmp[PROFILE_LEN];
+	fread(tmp, sizeof(char), PROFILE_LEN, f);
+	CProfile tmp1(tmp);
+	printf("UCP file %s contained profile name %s", file.c_str(), tmp1.getNameAsString().c_str());
 }
 
-/**
- * Sanity checks a profile on the save file
- * @return true if file is good, false otherwise
- */
-inline bool checkProfileFromConsole() {
-	//TODO: Fill out
-	return true;
-}
-
-/**
- * Sanity checks a profile loaded into memory
- * @return true if file is good, false otherwise
- */
-inline bool checkProfileFromMemory() {
-	//TODO: Fill out
-	return true;
-}
-
-/**
- * Sanity checks a UCP file
- * @param file File to check
- * @return true if file is good, false otherwise
- */
-inline bool checkProfileFromFile(std::string file) {
-	//TODO: Fill out
-	return true;
-}
-
-//TODO: Better naming convention for these, clear is unclear
 /**
  * Sets all profiles in memory to inactive. Need to call
  * dumpProfilesToConsole to actually write it
  */
-inline bool clearProfilesFromMemory() {
-	//TODO: Fill in
-	return true;
-}
-
-/**
- * Sets a profile in memory to inactive. Need to call
- * dumpProfileToConsole to actually write it
- * @param index index of profile to clear
- */
-inline bool clearProfileFromMemory(int index) {
-	//TODO: Fill in
+inline bool deleteProfilesFromMemory() {
+	//TODO: Test
+	int ct = 0;
+	for (int i = 0; i < MAX_PROFILES; i++) {
+		if (profs[i].raw[0] == 1) {
+			profs[i].deactivate();
+			ct++;
+		}
+	}
+	printf("Deactivated %x profiles in memory", ct);
 	return true;
 }
