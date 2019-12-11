@@ -50,7 +50,7 @@ void showMainInfo() {
 	consoleClear();
 	printf("Selected User: 0x%llu %llu\n", accUid.uid[1], accUid.uid[0]);
 	showProfilesFromMemory(true);
-	printf("Press - to demo loading UCPs and writing them to save file (Currently broken)\n");
+	printf("Press - to demo loading UCPs and writing them to save file\n");
 	printf("Press Down to demo writing a UCP from a console profile\n");
 	printf("Press + to exit\n\n");
 }
