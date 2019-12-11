@@ -21,11 +21,12 @@ const char INACTIVE_PROFILE[82] = {00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 0
 	0x0A, 0x0B, 0x0C, 00,01, 05, 02, 02, 01, 01, 01, 01, 0x0D, 0x0D, 04, 03, 02, 00, 02, 01, 01, 01, 01, 01, 00, 00, 00};
 
 std::streamoff off = PROFILE_OFF_START;
-u128 userID=0; //Blank user to be filled
+ //Blank user to be filled
+AccountUid accUid = {0};
 size_t numPfs = 0;
 
 enum PROFILE_CHECK_CODES {
-	GOOD_PROFILE = 0,
+	GOOD_PROFILE = 0b0000'0000,
 	BAD_HEAD = 1,
 	BAD_NAME = 2,
 	BAD_GC = 4,
@@ -215,17 +216,17 @@ inline Result mntSaveDir() {
 	FsFileSystem tmpfs;
 	bool found = false;
 	printf("Mounting save...\n");
-	Result rc = fsMount_SaveData(&tmpfs, TITLE_ID, userID);
+	Result rc = fsdevMountSaveData("save", TITLE_ID, accUid);
 	if (R_FAILED(rc)) {
-            printf("fsMount_SaveData() failed: 0x%x\n", rc);
+            printf("fsdevMountSaveData() failed: 0x%x\n", rc);
         }
-	if (R_SUCCEEDED(rc)) {
+	/*if (R_SUCCEEDED(rc)) {
         ret = fsdevMountDevice("save", tmpfs);
         if (ret==-1) {
             printf("fsdevMountDevice() failed.\n");
             rc = ret;
         }
-    }
+    }*/
 	if (R_SUCCEEDED(rc)) {
 		dir = opendir("save:/save_data");
 		if(dir==NULL) {
@@ -283,6 +284,8 @@ inline u128 getPreUsrAcc() {
 	appletHolderClose(&aph);
 	appletStorageClose(&ast);
 	appletStorageClose(&hast1);
+	accUid.uid[1] = (u64)(outdata.UID>>64);
+	accUid.uid[0] = (u64)(outdata.UID);
 	return outdata.UID;
 }
 
@@ -298,7 +301,7 @@ inline bool checkProfile(char* pf) {
 		mask |= BAD_HEAD;
 	}
 	for (int i = 12; i < 32; i++) {
-		if (pf[i] < 32) {
+		if (pf[i] < 32 && pf[i] != 0) {
 			mask |= BAD_NAME;
 			break;
 		}
@@ -324,25 +327,26 @@ inline bool checkProfile(char* pf) {
 			}
 		}
 	}
-	if (mask & GOOD_PROFILE) {
+	if (mask == GOOD_PROFILE) {
+		printf("Good profile\n");
 		return true;
 	}
 	printf("Profile has the following errors:\n");
-		if (mask & BAD_HEAD)
-			printf("Header\n");
-		if (mask & BAD_NAME)
-			printf("Name\n");
-		if (mask & BAD_GC)
-			printf("Gamecube Controller Layout\n");
-		if (mask & BAD_PC)
-			printf("Pro Controller Layout\n");
-		if (mask & BAD_JC)
-			printf("Joycon Layout\n");
-		printf("Here's a dump:\n");
-		for (int i = 0; i > sizeof(pf); i++) {
-			printf("%hX ", pf[i]);
-		}
-		printf("\n\n");
+	if (mask & BAD_HEAD)
+		printf("Header\n");
+	if (mask & BAD_NAME)
+		printf("Name\n");
+	if (mask & BAD_GC)
+		printf("Gamecube Controller Layout\n");
+	if (mask & BAD_PC)
+		printf("Pro Controller Layout\n");
+	if (mask & BAD_JC)
+		printf("Joycon Layout\n");
+	printf("Here's a dump:\n");
+	for (int i = 0; i < PROFILE_LEN; i++) {
+		printf("%hX ", pf[i]);
+	}
+	printf("\n\n");
 	return false;
 }
 
@@ -405,22 +409,23 @@ inline void loadProfileFromConsole(CProfile pf, int index) {
 
 /**
  * @details Loads a UCP controller profile file from the uct directory on the SD card to memory
- * @param pf CProfile to write the profile to
  * @param file The UCP file to load
  */
-inline void loadProfileFromFile(CProfile pf, std::string file) {
+inline CProfile loadProfileFromFile(std::string file) {
 	char mem[PROFILE_LEN];
 	FILE* f = fopen(file.c_str(), "r");
+	CProfile pf;
 	if (!f) {
 		printf("Couldn't open file in loadProfileFromFile");
-		return;
+		return pf;
 	}
 	fread(mem, PROFILE_LEN, 1, f);
 	fclose(f);
 
 	//Sanity checking
 	if(checkProfile(mem)) {
-		pf = CProfile(mem);
+		CProfile pf(mem);
+		return pf;
 	}
 }
 
@@ -539,9 +544,10 @@ inline bool dumpProfileToFile(CProfile pf, std::string file = "") {
 	//Check to see if file exists. If yes, overwrite, if not, create new file with name
 	//If no name specified, generate one
 	if (file == "") {
-		auto tmp = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-		file = pf.getNameAsString() + "-" + reinterpret_cast<char*>(tmp);
+		//TODO: Epoch timestamp and handling chars not allowed in files
+		file = "/uct/" +  pf.getNameAsString() + ".ucp";
 	}
+	printf("Dumping profile to file at %s\n", file.c_str());
 	FILE* f = fopen(file.c_str(), "wb");
 	if (!f) {
 		printf("Failed to open %s for writing in dumpProfileToFile", file.c_str());
@@ -549,19 +555,29 @@ inline bool dumpProfileToFile(CProfile pf, std::string file = "") {
 	}
 	fwrite(pf.raw, sizeof(char), PROFILE_LEN, f);
 	fclose(f);
+	
 	return true;
 }
 
 /**
- * @details Prints info about all profiles loaded into memory
+ * @details Prints info about profiles loaded into memory
+ * @param active weather or not to only show active profiles
  */
-inline void showProfilesFromMemory() {
+inline void showProfilesFromMemory(bool active) {
 	//TODO: Test
-	for(int i = 0; i < MAX_PROFILES; i++) {
-		if (profs[i].active == true) {
-			printf("Found loaded profile in slot %u named %s\n", i, profs[i].getNameAsString().c_str());
+	if (active) {
+		for(int i = 0; i < MAX_PROFILES; i++) {
+			if (profs[i].active == true) {
+				printf("Profile %u: %s\n", i, profs[i].getNameAsString().c_str());
+			}
 		}
 	}
+	else {
+		for(int i = 0; i < MAX_PROFILES; i++) {
+			printf("Profile %u: %s\n", i, profs[i].getNameAsString().c_str());
+		}
+	}
+	
 }
 
 /**
@@ -592,4 +608,71 @@ inline bool deleteProfilesFromMemory() {
 	}
 	printf("Deactivated %x profiles in memory", ct);
 	return true;
+}
+
+/**
+ * @details Gets the last active profile slot
+ * @returns The the last active profile slow as an integer
+ */
+inline int getLastProfileIndex() {
+	int tmp = 0;
+	for (int i = 0; i < MAX_PROFILES; i++) {
+		if(profs[i].active) {
+			tmp = i;
+		}
+	}
+	return tmp;
+}
+
+/**
+ * @details Select from all loaded profiles
+ * @return the index of the selected profiles, or -1 if cancled
+ */
+inline int selectProfile() {
+	int index = 0;
+	while(true) {
+		consoleClear();
+		printf("Select a profile to dump (B to cancel):\n");
+		for(int i = 0; i < MAX_PROFILES; i++) {
+			if (profs[i].active) {
+				if (i == index) {
+					printf(">Profile %u: %s\n", i, profs[i].getNameAsString().c_str());
+				}
+				else {
+					printf(" Profile %u: %s\n", i, profs[i].getNameAsString().c_str());
+				}
+			}
+		}
+		hidScanInput();
+		u64 kDown = hidKeysDown(CONTROLLER_P1_AUTO);
+		if ((kDown & KEY_DDOWN) && index < getLastProfileIndex()) {
+			index++;
+			while (true) {
+				if (!profs[index].active) {
+					index++;
+				}
+				else {
+					break;
+				}
+			}
+		}
+		if ((kDown & KEY_DUP) && index > 0) {
+			index--;
+			while (true) {
+				if (!profs[index].active) {
+					index--;
+				}
+				else {
+					break;
+				}
+			}
+		}
+		if (kDown & KEY_A) {
+			return index;	
+		}
+		if (kDown & KEY_B) {
+			return -1;
+		}
+		consoleUpdate(NULL);
+	}
 }
