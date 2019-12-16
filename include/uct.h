@@ -55,12 +55,17 @@ struct CProfile {
 		if (name == 0) {
 			memcpy(&name[0], &raw[12], 20);
 		}
+		//Variable to check how many 0 cases we got
 		int zc = 0;
 		for (char i : name) {
 			if (i != 0) {
-				nm += i;
+				if (i >= 32 && i <= 126)
+					nm += i;
+				else
+					nm += 45;
 				zc = 0;
 			}
+			//If we ever get 2 0s in a row, that's the end of the name
 			else if (zc > 1){
 				break;
 			}
@@ -120,7 +125,7 @@ struct CProfile {
 		edit = pf[80];
 		end = pf[81];
 
-		if (end != 0 && header != 0) {
+		if (raw[0] != 0) {
 			active = true;
 		}
 	}
@@ -206,6 +211,7 @@ struct CProfile {
 };
 CProfile profs[60];
 
+//TODO: Networking
 /**
  * @details Mounts the save directory for read/write ops
  */
@@ -364,19 +370,14 @@ inline void loadProfilesFromConsole(CProfile *pfs) {
     for (int i = 0; i < MAX_PROFILES; i++) {
         fseek(save, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * i), SEEK_SET);
         fread(mem, PROFILE_LEN, 1, save);
-        if (mem[0] == 1 && mem[1] == 0 && mem[2] == 0 && mem[3] == 0) {
-			pfs[i] = CProfile(mem);
-            //printf("Profile %u, Name: %s\n", i, pfs[i].getNameAsString());
-            numPfs++;
-        }        
+		pfs[i] = CProfile(mem);
+        numPfs++;
+               
     }
     printf("Found %lu profiles in save.\n", numPfs);
     if (fclose(save) != 0) {
 	    printf("fclose failed in loadProfilesFromConsole\n");
     }
-	if (R_FAILED(fsdevUnmountDevice("save"))) {
-		printf("fsdevUnmountDevice failed in loadProfilesFromConsole\n");
-	}
 }
 
 /**
@@ -386,7 +387,7 @@ inline void loadProfilesFromConsole(CProfile *pfs) {
  */
 inline void loadProfileFromConsole(CProfile pf, int index) {
 	if (index > MAX_PROFILES) {
-		printf("ERROR @ dumpProfileToConsole: System cannot hold more then %x profiles, but index %x was requested", MAX_PROFILES, index);
+		printf("ERROR @ loadProfileFromConsole: System cannot hold more then %x profiles, but index %x was requested", MAX_PROFILES, index);
 		return;
 	}
 	char mem[PROFILE_LEN];
@@ -398,12 +399,14 @@ inline void loadProfileFromConsole(CProfile pf, int index) {
     }
 	fseek(save, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * index), SEEK_SET);
 	fread(mem, PROFILE_LEN, 1, save);
-	if (mem[0] == 1 && mem[1] == 0 && mem[2] == 0 && mem[3] == 0) {
-		pf = CProfile(mem);
-        printf("Found Profile named: %s\n", pf.getNameAsString().c_str());
-    }
-	else {
-		printf("No profile found at index %i (offset %hx)\n", index, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * index));
+	pf = CProfile(mem);
+    printf("Found Profile named: %s\n", pf.getNameAsString().c_str());
+	for (char i : pf.raw) {
+		printf("%hX ", i);
+	}
+	printf("\n");
+	if (mem[0] == 0) {
+		printf("Inactive profile found at index %i (offset %hx)\n", index, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * index));
 	}
 }
 
@@ -414,10 +417,11 @@ inline void loadProfileFromConsole(CProfile pf, int index) {
 inline CProfile loadProfileFromFile(std::string file) {
 	char mem[PROFILE_LEN];
 	FILE* f = fopen(file.c_str(), "r");
-	CProfile pf;
+	//CProfile pf;
 	if (!f) {
 		printf("Couldn't open file in loadProfileFromFile");
-		return pf;
+		CProfile zero;
+		return zero;
 	}
 	fread(mem, PROFILE_LEN, 1, f);
 	fclose(f);
@@ -427,6 +431,9 @@ inline CProfile loadProfileFromFile(std::string file) {
 		CProfile pf(mem);
 		return pf;
 	}
+	printf("Bad profile loadProfileFromFile");
+	CProfile pf(mem);
+	return pf;
 }
 
 /**
@@ -563,7 +570,7 @@ inline bool dumpProfileToFile(CProfile pf, std::string file = "") {
  * @details Prints info about profiles loaded into memory
  * @param active weather or not to only show active profiles
  */
-inline void showProfilesFromMemory(bool active) {
+inline void showProfilesFromMemory(const bool active) {
 	//TODO: Test
 	if (active) {
 		for(int i = 0; i < MAX_PROFILES; i++) {
@@ -635,6 +642,7 @@ inline int selectProfile() {
 		printf("Select a profile to dump (B to cancel):\n");
 		for(int i = 0; i < MAX_PROFILES; i++) {
 			if (profs[i].active) {
+			//if (true) {
 				if (i == index) {
 					printf(">Profile %u: %s\n", i, profs[i].getNameAsString().c_str());
 				}

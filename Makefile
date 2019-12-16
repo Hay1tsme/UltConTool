@@ -46,7 +46,7 @@ INCLUDES	:=	include
 ICON		:= icon.jpg
 APP_AUTHOR	:= Hay1tsme
 APP_TITLE	:= Ultimate Controller Tool Demos
-APP_VERSION	:= 0.2.0
+APP_VERSION	:= 0.2.1
 #---------------------------------------------------------------------------------
 # options for code generation
 #---------------------------------------------------------------------------------
