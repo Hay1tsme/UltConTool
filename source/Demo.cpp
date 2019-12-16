@@ -12,12 +12,17 @@ void showMainInfo();
 
 int main(int argc, char **argv) {
 	consoleInit(NULL);
-	//If the user presses B on the profile select, quit the application gracefully
 	getPreUsrAcc();
+	//If the user presses B on the profile select, quit the application gracefully
+	if (accUid.uid[0] == 0) {
+		consoleExit(NULL);
+        return 0;
+	}	
 	if (R_FAILED(mntSaveDir())) {
-        printf("Failed to mount save dir, stopping...\n");
-		//consoleExit(NULL);
-        //return 0;
+        printf("Failed to mount save dir, closing in 5 seconds...\n");
+		svcSleepThread(5E+9L);
+		consoleExit(NULL);
+        return 0;
     }
 	loadProfilesFromConsole(profs);
 	printf("Loading Ultimate Controller Tools...\n");
@@ -50,9 +55,9 @@ void showMainInfo() {
 	consoleClear();
 	printf("Selected User: 0x%llu %llu\n", accUid.uid[1], accUid.uid[0]);
 	showProfilesFromMemory(true);
-	printf("Press - to demo loading UCPs and writing them to save file\n");
-	printf("Press Down to demo writing a UCP from a console profile\n");
-	printf("Press + to exit\n\n");
+	printf("Press - to demo loading UCPs and writing them to save file.\n");
+	printf("Press Down to demo writing a UCP from a console profile.\n");
+	printf("Press + to exit.\n\n");
 }
 
 void demoWriteUCPFromConsole() {
@@ -66,7 +71,6 @@ void demoWriteUCPFromConsole() {
 	printf((f) ? "Sucessfully wrote to file\n" : "Failed to write to file\n");
 }
 
-//TODO: Fix
 void demoReadUCPAndWriteSave() {
 	consoleClear();
 	std::vector<CProfile> files;
