@@ -352,3 +352,4 @@ MigrationBackup/
 *.elf
 *.nacp
 *.nro
+*.nso

@@ -72,19 +72,25 @@ void demoWriteUCPFromConsole() {
 }
 
 void demoReadUCPAndWriteSave() {
+	//TODO: Figure out why some files don't write
 	consoleClear();
 	std::vector<CProfile> files;
-	DIR* dir = opendir("/uct");
+	DIR* uct = opendir("/uct");
+	if (!uct) {
+		consoleClear();
+		showMainInfo();
+		printf("\n\nFailed to open /uct directory.\n");
+		return;
+	}
 	printf("Dir-listing for '/uct':\n");
 	char dirc[PATH_MAX] = "/uct/";
 	struct dirent* ent;
 	
-    while ((ent = readdir(dir)))
-    {
+    while ((ent = readdir(uct))) {
         CProfile tmp;
         std::string s = ent->d_name;
         if (ent->d_name == nullptr) {
-	        printf("nullptr");
+	        printf("Filename returned Nullptr\n");
         }
         else if (s.find(".ucp") != std::string::npos) {
 	        printf("Found possible UCP file: %s\n", ent->d_name);
@@ -99,7 +105,23 @@ void demoReadUCPAndWriteSave() {
         strncpy(dirc, "/uct/", sizeof(dirc));
     }
 	
-    closedir(dir);
+    closedir(uct);
+
+	printf("Press A to write UCPs to save.\n");
+	printf("Press B to cancel.\n");
+	while (true) {
+		hidScanInput();
+		u64 kDown = hidKeysDown(CONTROLLER_P1_AUTO);
+		if (kDown & KEY_B) {
+			consoleClear();
+			showMainInfo();
+			return;
+		}
+		if (kDown & KEY_A) {
+			break;
+		}
+		consoleUpdate(NULL);
+	}
 	
     printf("Overwriting first %d profiles\n", files.size());
 	

@@ -300,12 +300,13 @@ inline bool checkProfile(char* pf) {
 	if (pf[0] != 1 && pf[0] != 0) {
 		mask |= BAD_HEAD;
 	}
-	for (int i = 12; i < 32; i++) {
-		if (pf[i] < 32 && pf[i] != 0) {
+	//TODO: Figure out name stuff
+	/*for (int i = 12; i < 32; i++) {
+		if (pf[i] < 32 && pf[i] > 3) {
 			mask |= BAD_NAME;
 			break;
 		}
-	}
+	}*/
 	for(int i = CProfile::GCOFF; i < CProfile::PCOFF; i++) {
 		if (pf[i] > 5) {
 			if (!(i >=40 && i <= 42) && !(pf[i] >= 10 && pf[i] <= 12)) {
@@ -343,7 +344,7 @@ inline bool checkProfile(char* pf) {
 	if (mask & BAD_JC)
 		printf("Joycon Layout\n");
 	printf("Here's a dump:\n");
-	for (int i = 0; i < PROFILE_LEN; i++) {
+	for (int i = 0; i < 82; i++) {
 		printf("%hX ", pf[i]);
 	}
 	printf("\n\n");
@@ -414,19 +415,23 @@ inline void loadProfileFromConsole(CProfile pf, int index) {
 inline CProfile loadProfileFromFile(std::string file) {
 	char mem[PROFILE_LEN];
 	FILE* f = fopen(file.c_str(), "r");
-	CProfile pf;
 	if (!f) {
 		printf("Couldn't open file in loadProfileFromFile");
+		CProfile pf;
 		return pf;
 	}
 	fread(mem, PROFILE_LEN, 1, f);
 	fclose(f);
 
 	//Sanity checking
-	if(checkProfile(mem)) {
-		CProfile pf(mem);
+	if(!checkProfile(mem)) {
+		printf("Profile check failed\n");
+		CProfile pf;
 		return pf;
 	}
+		
+	CProfile pf(mem);
+	return pf;
 }
 
 /**
