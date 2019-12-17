@@ -9,6 +9,7 @@
 void demoReadUCPAndWriteSave();
 void demoWriteUCPFromConsole();
 void showMainInfo();
+void demoClearProfiles();
 
 int main(int argc, char **argv) {
 	consoleInit(NULL);
@@ -36,12 +37,9 @@ int main(int argc, char **argv) {
 
         //hidKeysDown returns information about which buttons have been just pressed (and they weren't in the previous frame)
         u64 kDown = hidKeysDown(CONTROLLER_P1_AUTO);
-		if (kDown & KEY_MINUS) {
-			demoReadUCPAndWriteSave();
-		}
-    	if (kDown & KEY_DDOWN) {
-    		demoWriteUCPFromConsole();
-    	}
+		if (kDown & KEY_UP) demoReadUCPAndWriteSave();
+    	if (kDown & KEY_DDOWN) demoWriteUCPFromConsole();
+    	if (kDown & KEY_LEFT) demoClearProfiles();
         if (kDown & KEY_PLUS) break; // break in order to return to hbmenu
 
         consoleUpdate(NULL);
@@ -55,8 +53,10 @@ void showMainInfo() {
 	consoleClear();
 	printf("Selected User: 0x%llu %llu\n", accUid.uid[1], accUid.uid[0]);
 	showProfilesFromMemory(true);
-	printf("Press - to demo loading UCPs and writing them to save file.\n");
+	printf("Press UP to demo loading UCPs and writing them to save file.\n");
 	printf("Press Down to demo writing a UCP from a console profile.\n");
+	printf("Press Left to demo clearing all profiles.\n");
+	//TODO: Pressing right lets you view details about a UCP file
 	printf("Press + to exit.\n\n");
 }
 
@@ -72,7 +72,6 @@ void demoWriteUCPFromConsole() {
 }
 
 void demoReadUCPAndWriteSave() {
-	//TODO: Figure out why some files don't write
 	consoleClear();
 	std::vector<CProfile> files;
 	DIR* uct = opendir("/uct");
@@ -142,5 +141,33 @@ void demoReadUCPAndWriteSave() {
 		consoleUpdate(NULL);
 	}
 	
+	showMainInfo();
+}
+
+void demoClearProfiles() {
+	consoleClear();
+	//TODO: Button prompt before nuking
+	printf("Clearing ALL profiles from memory.\n");
+	if (!deleteProfilesFromMemory()) {
+		consoleClear();
+		showMainInfo();
+		printf("\n\nFailed to clear profiles from memory.\n");
+		return;
+	}
+	if (!dumpProfilesToConsole(profs)) {
+		consoleClear();
+		showMainInfo();
+		printf("\n\nFailed to delete profiles from console.\n");
+		return;
+	}
+	printf("Successfully deleted all profiles. Press A to continue\n");
+	while (true) {
+		hidScanInput();
+        u64 kDown = hidKeysDown(CONTROLLER_P1_AUTO);
+		if (kDown & KEY_A)
+			break;
+		consoleUpdate(NULL);
+	}
+	consoleClear();
 	showMainInfo();
 }

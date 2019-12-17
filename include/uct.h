@@ -6,6 +6,7 @@
 #include <cstring>
 #include <ctime>
 #include <fstream>
+#include <string>
 
 const int MAX_USERS = 10;
 const int PROFILE_LEN = 82;
@@ -97,12 +98,12 @@ struct CProfile {
 	}
 	void deactivate() {
 		memcpy(&raw[0], INACTIVE_PROFILE, PROFILE_LEN);
-		memcpy(&header[0], 0, 4);
-		memcpy(&id[0], 0, 5);
+		memset(&header[0], 0, 4);
+		memset(&id[0], 0, 5);
 		memcpy(&gc[0], DEFAULT_GC_BUTTONS, 15);
 		memcpy(&pc[0], DEFAULT_PC_BUTTONS, 16);
 		memcpy(&jc[0], DEFAULT_JC_BUTTONS, 12);
-		memcpy(&name[0], 0, 20);
+		memset(&name[0], 0, 20);
 		edit = 0;
 		end = 0;
 		active = false;
@@ -206,6 +207,7 @@ struct CProfile {
 };
 CProfile profs[60];
 
+//TODO: Networking
 /**
  * @details Mounts the save directory for read/write ops
  */
@@ -295,7 +297,6 @@ inline u128 getPreUsrAcc() {
  * @return A bitmask that will be nonzero if there's a problem
  */
 inline bool checkProfile(char* pf) {
-	//TODO: Test
 	unsigned char mask{0b0000'0000};
 	if (pf[0] != 1 && pf[0] != 0) {
 		mask |= BAD_HEAD;
@@ -404,7 +405,7 @@ inline void loadProfileFromConsole(CProfile pf, int index) {
         printf("Found Profile named: %s\n", pf.getNameAsString().c_str());
     }
 	else {
-		printf("No profile found at index %i (offset %hx)\n", index, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * index));
+		printf("No profile found at index %i (offset 0x%08X)\n", index, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * index));
 	}
 }
 
@@ -472,9 +473,9 @@ inline bool dumpProfileToConsole(char* buffer, int index) {
 	}
 	
 	fseek(file, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * index), SEEK_SET);
-	printf("Writing to offset %hX\n", ftell(file));
+	printf("Writing to offset 0x%08X\n", ftell(file));
 	fwrite(buffer, PROFILE_LEN, 1, file);
-	printf("Wrote to offset, now at %hX\n", ftell(file));
+	printf("Wrote to offset, now at 0x%08X\n", ftell(file));
 	fclose(file);
 
 	if (R_FAILED(fsdevCommitDevice("save"))) {
@@ -494,7 +495,6 @@ inline bool dumpProfileToConsole(char* buffer, int index) {
  *	@return true on success, false on fail with error printf'd
  */
 inline bool dumpProfilesToConsole(CProfile* pfs) {
-	//TODO: Test
 	FsFileSystem fs;
 
 	if (R_FAILED(mntSaveDir())) {
@@ -521,7 +521,7 @@ inline bool dumpProfilesToConsole(CProfile* pfs) {
 	printf("Writing %lu profiles to the save file", sizeof(pfs));
 	for (int i = 0; i < sizeof(pfs); i++) {
 		fseek(file, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * i), SEEK_SET);
-		printf("Writing to offset %hX\n", ftell(file));
+		printf("Writing to offset 0x%08X\n", ftell(file));
 		fwrite(pfs[i].raw, PROFILE_LEN, 1, file);
 	}	
 	fclose(file);
@@ -545,12 +545,12 @@ inline bool dumpProfilesToConsole(CProfile* pfs) {
  * @return true on success, false on fail with error printf'd
  */
 inline bool dumpProfileToFile(CProfile pf, std::string file = "") {
-	//TODO: Test
 	//Check to see if file exists. If yes, overwrite, if not, create new file with name
 	//If no name specified, generate one
 	if (file == "") {
-		//TODO: Epoch timestamp and handling chars not allowed in files
-		file = "/uct/" +  pf.getNameAsString() + ".ucp";
+		u64 epoch;
+		timeGetCurrentTime(TimeType_NetworkSystemClock, &epoch);
+		file = "/uct/" +  pf.getNameAsString() + "-" + std::to_string(epoch) + + ".ucp";
 	}
 	printf("Dumping profile to file at %s\n", file.c_str());
 	FILE* f = fopen(file.c_str(), "wb");
@@ -569,7 +569,6 @@ inline bool dumpProfileToFile(CProfile pf, std::string file = "") {
  * @param active weather or not to only show active profiles
  */
 inline void showProfilesFromMemory(bool active) {
-	//TODO: Test
 	if (active) {
 		for(int i = 0; i < MAX_PROFILES; i++) {
 			if (profs[i].active == true) {
@@ -603,15 +602,18 @@ inline void showProfileFromFile(std::string file) {
  * dumpProfilesToConsole to actually write it
  */
 inline bool deleteProfilesFromMemory() {
-	//TODO: Test
 	int ct = 0;
-	for (int i = 0; i < MAX_PROFILES; i++) {
-		if (profs[i].raw[0] == 1) {
-			profs[i].deactivate();
+	if (profs == nullptr) {
+		printf("profs is null");
+		return false;
+	}
+	for (auto& prof : profs) {
+		if (prof.active) {
+			prof.deactivate();
 			ct++;
 		}
 	}
-	printf("Deactivated %x profiles in memory", ct);
+	printf("Deactivated %d profiles in memory", ct);
 	return true;
 }
 
