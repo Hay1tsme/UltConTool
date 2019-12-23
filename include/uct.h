@@ -22,7 +22,6 @@ const char INACTIVE_PROFILE[82] = {00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 0
 	0x0A, 0x0B, 0x0C, 00,01, 05, 02, 02, 01, 01, 01, 01, 0x0D, 0x0D, 04, 03, 02, 00, 02, 01, 01, 01, 01, 01, 00, 00, 00};
 
 std::streamoff off = PROFILE_OFF_START;
- //Blank user to be filled
 AccountUid accUid = {0};
 size_t numPfs = 0;
 
@@ -535,7 +534,6 @@ inline bool dumpProfilesToConsole(CProfile* pfs) {
 	fsFsClose(&fs);
 
 	return true;
-	return 0;
 }
 
 /**
@@ -680,6 +678,59 @@ inline int selectProfile() {
 		if (kDown & KEY_B) {
 			return -1;
 		}
+		consoleUpdate(NULL);
+	}
+}
+
+inline std::string selectUCP(std::string dirn = "/uct") {
+	DIR* dir = opendir(dirn.c_str());
+	std::vector<std::string> filesN;
+	struct dirent* ent;
+	int index = 0;
+	char dirc[PATH_MAX] = "/uct/";
+	if (!dir) {
+		printf("%s could not be opened\n", dirn.c_str());
+		return "";
+	}
+	while ((ent = readdir(dir))) {
+        CProfile tmp;
+        std::string s = ent->d_name;
+        if (ent->d_name == nullptr) {
+	        printf("Filename returned Nullptr\n");
+        }
+        else if (s.find(".ucp", s.size() - 4) != std::string::npos) {
+	        strncpy(&dirc[strlen(dirn.c_str()) + 1], s.c_str(), s.length());
+	        printf(dirc);
+	        printf("\n");
+        	filesN.push_back(dirc);
+	        printf("\n");
+        }
+        memset(&dirc[strlen(dirn.c_str()) + 1], 0, sizeof(dirc) - (strlen(dirn.c_str()) + 1));
+        memset(&dirc[strlen(dirn.c_str()) + 1], 0, sizeof(dirc));
+    }
+	if (filesN.empty()) {
+		printf("No UCP files found in %s.\n", dirn.c_str());
+		return "";
+	}
+	while (true) {
+		consoleClear();
+		printf("Select UCP file to view using Up/Down, confirm with A\n");
+		int ct = 0;
+		for (int i = 0; i < filesN.size(); i++) {
+			if (i == index) {
+				printf(">File %d: %s\n", i, filesN[i].c_str());
+			}
+			else {
+				printf(" File %d: %s\n", i, filesN[i].c_str());
+			}
+			ct++;
+		}
+		hidScanInput();
+		u64 kDown = hidKeysDown(CONTROLLER_P1_AUTO);
+		if ((kDown & KEY_DUP) && index > 0) index--;
+		if ((kDown & KEY_DDOWN) && index < ct - 1) index++;
+		if (kDown & KEY_A) return filesN[index];
+		if (kDown & KEY_B) return "";
 		consoleUpdate(NULL);
 	}
 }

@@ -10,6 +10,7 @@ void demoReadUCPAndWriteSave();
 void demoWriteUCPFromConsole();
 void showMainInfo();
 void demoClearProfiles();
+void demoShowUCPFileIfo();
 
 int main(int argc, char **argv) {
 	consoleInit(NULL);
@@ -40,6 +41,7 @@ int main(int argc, char **argv) {
 		if (kDown & KEY_UP) demoReadUCPAndWriteSave();
     	if (kDown & KEY_DDOWN) demoWriteUCPFromConsole();
     	if (kDown & KEY_LEFT) demoClearProfiles();
+    	if (kDown & KEY_RIGHT) demoShowUCPFileIfo();
         if (kDown & KEY_PLUS) break; // break in order to return to hbmenu
 
         consoleUpdate(NULL);
@@ -56,7 +58,7 @@ void showMainInfo() {
 	printf("Press UP to demo loading UCPs and writing them to save file.\n");
 	printf("Press Down to demo writing a UCP from a console profile.\n");
 	printf("Press Left to demo clearing all profiles.\n");
-	//TODO: Pressing right lets you view details about a UCP file
+	printf("Press Right to demo viewing UCP info.\n");
 	printf("Press + to exit.\n\n");
 }
 
@@ -169,5 +171,27 @@ void demoClearProfiles() {
 		consoleUpdate(NULL);
 	}
 	consoleClear();
+	showMainInfo();
+}
+
+void demoShowUCPFileIfo() {
+	std::string ucp = selectUCP();
+	if (ucp.empty()) {
+		showMainInfo();
+		printf("\nFailed to find any files");
+		return;
+	}
+	CProfile f = loadProfileFromFile(ucp);
+	printf("\nInfo about %s:\nName:%s\nRaw:", ucp.c_str(), f.getNameAsString().c_str());
+	for (char x : f.raw) {
+		printf("%hX ", x);
+	}
+	printf("\n\nPress A to continue...");
+	while (true) {
+		hidScanInput();
+		u64 kDown = hidKeysDown(CONTROLLER_P1_AUTO);
+		if (kDown & KEY_A) break;
+		consoleUpdate(NULL);
+	}
 	showMainInfo();
 }
