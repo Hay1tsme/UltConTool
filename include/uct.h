@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <chrono>
 #include <cstring>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 #include <ctime>
 #include <fstream>
 #include <string>
@@ -288,6 +290,20 @@ inline u128 getPreUsrAcc() {
 	accUid.uid[1] = (u64)(outdata.UID>>64);
 	accUid.uid[0] = (u64)(outdata.UID);
 	return outdata.UID;
+}
+
+inline bool initNetwork() {
+	Result rc = socketInitializeDefault();
+	struct sockaddr_in a;
+	u32 ip;
+	nifmGetCurrentIpAddress(&ip);	
+	printf("Local IP %u", ip);
+	return true;
+}
+
+inline bool cleanNetwork() {
+	socketExit();
+	return true;
 }
 
 /**

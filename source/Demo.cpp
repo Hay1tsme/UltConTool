@@ -29,6 +29,7 @@ int main(int argc, char **argv) {
 	loadProfilesFromConsole(profs);
 	printf("Loading Ultimate Controller Tools...\n");
 	showMainInfo();
+	initNetwork();
 	
 	// Main loop
     while(appletMainLoop())
@@ -46,7 +47,7 @@ int main(int argc, char **argv) {
 
         consoleUpdate(NULL);
     }
-	
+	cleanNetwork();
 	consoleExit(NULL);
 	return 0;
 }
