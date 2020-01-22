@@ -2,12 +2,9 @@
 #include <dirent.h>
 #include <switch.h>
 #include <stdio.h>
-#include <chrono>
 #include <cstring>
 #include <sys/socket.h>
-#include <arpa/inet.h>
-#include <ctime>
-#include <fstream>
+#include <unistd.h>
 #include <string>
 
 const int MAX_USERS = 10;
@@ -26,6 +23,7 @@ const char INACTIVE_PROFILE[82] = {00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 0
 std::streamoff off = PROFILE_OFF_START;
 AccountUid accUid = {0};
 size_t numPfs = 0;
+u32 ip;
 
 enum PROFILE_CHECK_CODES {
 	GOOD_PROFILE = 0b0000'0000,
@@ -292,18 +290,18 @@ inline u128 getPreUsrAcc() {
 	return outdata.UID;
 }
 
-inline bool initNetwork() {
+inline Result initNetwork() {
 	Result rc = socketInitializeDefault();
-	struct sockaddr_in a;
-	u32 ip;
-	nifmGetCurrentIpAddress(&ip);	
-	printf("Local IP %u", ip);
-	return true;
+	nifmInitialize(NifmServiceType_User);
+	
+	nifmGetCurrentIpAddress(&ip);
+	
+	return rc;
 }
 
-inline bool cleanNetwork() {
+inline void cleanNetwork() {
+	nifmExit();
 	socketExit();
-	return true;
 }
 
 /**
