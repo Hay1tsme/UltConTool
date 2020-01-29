@@ -23,7 +23,9 @@ const char INACTIVE_PROFILE[82] = {00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 0
 std::streamoff off = PROFILE_OFF_START;
 AccountUid accUid = {0};
 size_t numPfs = 0;
-u32 ip;
+u32 localIp = 0;
+std::string localIpStr;
+bool netActive = false;
 
 enum PROFILE_CHECK_CODES {
 	GOOD_PROFILE = 0b0000'0000,
@@ -206,7 +208,7 @@ struct CProfile {
 };
 CProfile profs[60];
 
-//TODO: Networking
+
 /**
  * @details Mounts the save directory for read/write ops
  */
@@ -290,14 +292,41 @@ inline u128 getPreUsrAcc() {
 	return outdata.UID;
 }
 
-inline Result initNetwork() {
-	Result rc = socketInitializeDefault();
-	nifmInitialize(NifmServiceType_User);
+inline std::string formatIpFromInt(unsigned int ip) {
+    unsigned char bytes[4];
 	
-	nifmGetCurrentIpAddress(&ip);
+    bytes[0] = ip & 0xFF;
+    bytes[1] = (ip >> 8) & 0xFF;
+    bytes[2] = (ip >> 16) & 0xFF;
+    bytes[3] = (ip >> 24) & 0xFF;
 	
-	return rc;
+	return std::to_string(bytes[0]) + "." + std::to_string(bytes[1]) + "." + std::to_string(bytes[2]) + "." + std::to_string(bytes[3]);
 }
+
+inline bool initNetwork() {
+	Result rc = socketInitializeDefault();
+	if (R_SUCCEEDED(rc)) {
+		rc = nifmInitialize(NifmServiceType_User);
+		if (R_SUCCEEDED(rc)) {
+			rc = nifmGetCurrentIpAddress(&localIp);
+			if (R_SUCCEEDED(rc) && localIp != 0) {
+				localIpStr = formatIpFromInt(localIp);
+				netActive = true;
+				return true;
+			}
+			printf("Failed to get current IP");
+			nifmExit();
+			socketExit();
+			return false;
+		}
+		printf("Failed to init NIFM services");
+		socketExit();
+		return false;
+	}
+	printf("Failed to init networking");
+	return false;
+}
+
 
 inline void cleanNetwork() {
 	nifmExit();

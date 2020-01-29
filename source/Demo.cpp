@@ -28,8 +28,9 @@ int main(int argc, char **argv) {
     }
 	loadProfilesFromConsole(profs);
 	printf("Loading Ultimate Controller Tools...\n");
-	showMainInfo();
 	initNetwork();
+	showMainInfo();
+	
 	
 	// Main loop
     while(appletMainLoop())
@@ -55,6 +56,8 @@ int main(int argc, char **argv) {
 void showMainInfo() {
 	consoleClear();
 	printf("Selected User: 0x%llu %llu\n", accUid.uid[1], accUid.uid[0]);
+	netActive ? printf("Local IP: %s\n", localIpStr.c_str()) :  printf("Networking inactive, no IP\n");
+	printf("%u\n", localIp);
 	showProfilesFromMemory(true);
 	printf("Press UP to demo loading UCPs and writing them to save file.\n");
 	printf("Press Down to demo writing a UCP from a console profile.\n");
@@ -179,7 +182,7 @@ void demoShowUCPFileIfo() {
 	std::string ucp = selectUCP();
 	if (ucp.empty()) {
 		showMainInfo();
-		printf("\nFailed to find any files");
+		printf("\nOperation cancled or no files found.");
 		return;
 	}
 	CProfile f = loadProfileFromFile(ucp);
