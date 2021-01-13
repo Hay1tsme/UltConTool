@@ -78,7 +78,7 @@
     <NMakeCleanCommandLine>make clean</NMakeCleanCommandLine>
     <NMakeReBuildCommandLine>make clean all</NMakeReBuildCommandLine>
     <NMakePreprocessorDefinitions>_DEBUG;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
-    <IncludePath>C:\devkitPro\devkitA64\aarch64-none-elf\include;C:\Users\ktroc\source\repos\UltConTool\UltConTool\include;C:\devkitPro\libnx\include;$(IncludePath)</IncludePath>
+    <IncludePath>C:\devkitPro\devkitA64\aarch64-none-elf\include;C:\Users\ktroc\source\repos\UltConTool\include;C:\devkitPro\libnx\include;$(IncludePath)</IncludePath>
     <ReferencePath>$(ReferencePath)</ReferencePath>
     <LibraryPath>C:\devkitPro\libnx\lib;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(NETFXKitsDir)Lib\um\x64</LibraryPath>
   </PropertyGroup>

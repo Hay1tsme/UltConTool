@@ -18,7 +18,7 @@ const char DEFAULT_PC_BUTTONS[16] = {04, 04, 03, 03, 0x0A, 0x0B, 0x0C, 00, 01, 0
 const char DEFAULT_JC_BUTTONS[12] = {0x0D, 0x0D, 04, 03, 02, 00, 02, 01, 01, 01, 01, 01};
 const char INACTIVE_PROFILE[82] = {00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00,
 	00, 00,	00, 00, 00, 00, 00, 00, 00, 00, 00, 03, 03, 04, 0x0A, 0x0B, 0x0C, 00, 01, 05, 02, 02, 01, 01, 01, 01, 04, 04, 03, 03,
-	0x0A, 0x0B, 0x0C, 00,01, 05, 02, 02, 01, 01, 01, 01, 0x0D, 0x0D, 04, 03, 02, 00, 02, 01, 01, 01, 01, 01, 00, 00, 00};
+	0x0A, 0x0B, 0x0C, 00, 01, 05, 02, 02, 01, 01, 01, 01, 0x0D, 0x0D, 04, 03, 02, 00, 02, 01, 01, 01, 01, 01, 00, 00, 00};
 
 std::streamoff off = PROFILE_OFF_START;
 AccountUid accUid = {0};
@@ -41,12 +41,37 @@ struct CProfile {
 	char raw[PROFILE_LEN], //raw copy of the profile
 	header[4] = { 0 }, //Header, should be 1 0 0 0 or 0 0 0 0, sometimes different?
 	name[20]= { 0 }, //profile name, bytes 13-32
+	nameNoNull[10] = {0}, // A holder for the name sans the null bytes
 	id[5]= { 0 }, //id, bytes 5 - 9, unknown generation method
 	gc[15]= { 0 }, //Gamecube controls, bytes 37 - 51
 	pc[16]= { 0 }, //Pro Controller controls, bytes 52 - 67
 	jc[12]= { 0 }, //JoyCon controls, bytes 68 - 79
 	edit = 0, //Edit count, shared across profiles, keeps track of the order in the edit menu
 	end = 0; // Ending byte, probably to track which is "in use"?
+
+	void printName() {
+		// Check for inactive profile
+		if (!active) {
+			//return;
+		}
+		if (nameNoNull == 0) {
+			printf("NoName");
+		} else {
+			int zeroCt = 0;
+			for (char i : nameNoNull) {
+				if (i != 0) {
+					printf("%c", i);
+					zeroCt = 0;
+				}
+				else if (zeroCt > 1){
+					printf("Name is %u characters long.\n", i);
+					break;
+				}
+				zeroCt++;
+			}
+		}
+		printf("\n");
+	}
 	
 	std::string getNameAsString() {
 		// Check for inactive profile
@@ -57,16 +82,17 @@ struct CProfile {
 		if (name == 0) {
 			memcpy(&name[0], &raw[12], 20);
 		}
-		int zc = 0;
+		int zeroCt = 0;
 		for (char i : name) {
 			if (i != 0) {
+				//printf("%c\n", i);
 				nm += i;
-				zc = 0;
+				zeroCt = 0;
 			}
-			else if (zc > 1){
+			else if (zeroCt > 1){
 				break;
 			}
-			zc++;
+			zeroCt++;
 		}
 		return nm;
 	}
@@ -122,7 +148,15 @@ struct CProfile {
 		edit = pf[80];
 		end = pf[81];
 
-		if (end != 0 && header != 0) {
+		int nonNullPos = 0;
+		for (int i = 0; i < 20; i++) {
+			if (name[i] != 0) {
+				name[nonNullPos] = name[i];
+				nonNullPos++;
+			}
+		}
+		printf("\n%c\n", nameNoNull[0]);
+		if (header != 0) {
 			active = true;
 		}
 	}
@@ -410,7 +444,10 @@ inline void loadProfilesFromConsole(CProfile *pfs) {
         fread(mem, PROFILE_LEN, 1, save);
         if (mem[0] == 1 && mem[1] == 0 && mem[2] == 0 && mem[3] == 0) {
 			pfs[i] = CProfile(mem);
-            //printf("Profile %u, Name: %s\n", i, pfs[i].getNameAsString());
+            printf("Profile %u, Name: %s\nRaw: ", i, pfs[i].nameNoNull);
+        	for (char j : pfs[i].raw)
+				printf("%hX ", j);
+			printf("\n");
             numPfs++;
         }        
     }
