@@ -248,9 +248,9 @@ CProfile profs[60];
  */
 inline Result mntSaveDir() {
 	DIR *dir;
-	int ret;
+	//int ret;
 	struct dirent* ent;
-	FsFileSystem tmpfs;
+	//FsFileSystem tmpfs;
 	bool found = false;
 	printf("Mounting save...\n");
 	Result rc = fsdevMountSaveData("save", TITLE_ID, accUid);
@@ -305,7 +305,7 @@ inline u128 getPreUsrAcc() {
 	struct UserReturnData outdata;
 	
 	indata[0x96] = 1;
-	appletCreateLibraryApplet(&aph, AppletId_playerSelect, LibAppletMode_AllForeground);
+	appletCreateLibraryApplet(&aph, AppletId_LibraryAppletPlayerSelect, LibAppletMode_AllForeground);
 	libappletArgsCreate(&args, 0);
 	libappletArgsPush(&args, &aph);
 	appletCreateStorage(&hast1, 0xA0);
@@ -552,9 +552,9 @@ inline bool dumpProfileToConsole(char* buffer, int index) {
 	}
 	
 	fseek(file, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * index), SEEK_SET);
-	printf("Writing to offset 0x%08X\n", ftell(file));
+	printf("Writing to offset 0x%08lX\n", ftell(file));
 	fwrite(buffer, PROFILE_LEN, 1, file);
-	printf("Wrote to offset, now at 0x%08X\n", ftell(file));
+	printf("Wrote to offset, now at 0x%08lX\n", ftell(file));
 	fclose(file);
 
 	if (R_FAILED(fsdevCommitDevice("save"))) {
@@ -600,7 +600,7 @@ inline bool dumpProfilesToConsole(CProfile* pfs) {
 	printf("Writing %lu profiles to the save file", sizeof(pfs));
 	for (int i = 0; i < sizeof(pfs); i++) {
 		fseek(file, PROFILE_OFF_START + (PROFILE_OFF_INTERVAL * i), SEEK_SET);
-		printf("Writing to offset 0x%08X\n", ftell(file));
+		printf("Writing to offset 0x%08lX\n", ftell(file));
 		fwrite(pfs[i].raw, PROFILE_LEN, 1, file);
 	}	
 	fclose(file);
@@ -625,17 +625,43 @@ inline bool dumpProfilesToConsole(CProfile* pfs) {
 inline bool dumpProfileToFile(CProfile pf, std::string file = "") {
 	//Check to see if file exists. If yes, overwrite, if not, create new file with name
 	//If no name specified, generate one
+	int status;	
+	DIR* dir;
 	if (file == "") {
 		u64 epoch;
 		timeGetCurrentTime(TimeType_NetworkSystemClock, &epoch);
 		file = "/uct/" +  pf.getNameAsString() + "-" + std::to_string(epoch) + + ".ucp";
 	}
+
 	printf("Dumping profile to file at %s\n", file.c_str());
+
+	dir = opendir("/uct");
+	if(dir==NULL) {
+        status = mkdir("/uct", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+		
+		if (status < 0) {
+			printf("Failed to create uct folder in SD root.\n");
+			return false;
+		}
+
+		dir = opendir("/uct");
+		if(dir==NULL) {
+			printf("Failed to open uct folder in SD root.\n");
+			return false;
+		}
+		
+		printf("Successfully created uct folder in SD root.\n");
+    }
+
+	printf("Found uct folder at SD root.\n");
+
 	FILE* f = fopen(file.c_str(), "wb");
+
 	if (!f) {
-		printf("Failed to open %s for writing in dumpProfileToFile", file.c_str());
+		printf("Failed to open %s for writing in dumpProfileToFile %d\n", file.c_str(), errno);
 		return false;
 	}
+
 	fwrite(pf.raw, sizeof(char), PROFILE_LEN, f);
 	fclose(f);
 	
@@ -709,60 +735,7 @@ inline int getLastProfileIndex() {
 	return tmp;
 }
 
-/**
- * @details Select from all loaded profiles
- * @return the index of the selected profiles, or -1 if cancled
- */
-inline int selectProfile() {
-	int index = 0;
-	while(true) {
-		consoleClear();
-		printf("Select a profile to dump (B to cancel):\n");
-		for(int i = 0; i < MAX_PROFILES; i++) {
-			if (profs[i].active) {
-				if (i == index) {
-					printf(">Profile %u: %s\n", i, profs[i].getNameAsString().c_str());
-				}
-				else {
-					printf(" Profile %u: %s\n", i, profs[i].getNameAsString().c_str());
-				}
-			}
-		}
-		hidScanInput();
-		u64 kDown = hidKeysDown(CONTROLLER_P1_AUTO);
-		if ((kDown & KEY_DDOWN) && index < getLastProfileIndex()) {
-			index++;
-			while (true) {
-				if (!profs[index].active) {
-					index++;
-				}
-				else {
-					break;
-				}
-			}
-		}
-		if ((kDown & KEY_DUP) && index > 0) {
-			index--;
-			while (true) {
-				if (!profs[index].active) {
-					index--;
-				}
-				else {
-					break;
-				}
-			}
-		}
-		if (kDown & KEY_A) {
-			return index;	
-		}
-		if (kDown & KEY_B) {
-			return -1;
-		}
-		consoleUpdate(NULL);
-	}
-}
-
-inline std::string selectUCP(std::string dirn = "/uct") {
+inline std::string selectUCP(PadState pad, std::string dirn = "/uct") {
 	DIR* dir = opendir(dirn.c_str());
 	std::vector<std::string> filesN;
 	struct dirent* ent;
@@ -805,12 +778,12 @@ inline std::string selectUCP(std::string dirn = "/uct") {
 			}
 			ct++;
 		}
-		hidScanInput();
-		u64 kDown = hidKeysDown(CONTROLLER_P1_AUTO);
-		if ((kDown & KEY_DUP) && index > 0) index--;
-		if ((kDown & KEY_DDOWN) && index < ct - 1) index++;
-		if (kDown & KEY_A) return filesN[index];
-		if (kDown & KEY_B) return "";
+		padUpdate(&pad);
+		u64 kDown = padGetButtonsDown(&pad);
+		if ((kDown & HidNpadButton_AnyUp) && index > 0) index--;
+		if ((kDown & HidNpadButton_AnyDown) && index < ct - 1) index++;
+		if (kDown & HidNpadButton_A) return filesN[index];
+		if (kDown & HidNpadButton_B) return "";
 		consoleUpdate(NULL);
 	}
 }

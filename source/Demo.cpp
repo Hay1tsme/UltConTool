@@ -11,10 +11,17 @@ void demoWriteUCPFromConsole();
 void showMainInfo();
 void demoClearProfiles();
 void demoShowUCPFileIfo();
+int selectProfile();
+PadState pad;
 
 int main(int argc, char **argv) {
 	consoleInit(NULL);
-	getPreUsrAcc();
+	
+	padConfigureInput(1, HidNpadStyleSet_NpadStandard);
+	
+	padInitializeAny(&pad);
+
+	getPreUsrAcc();	
 	//If the user presses B on the profile select, quit the application gracefully
 	if (accUid.uid[0] == 0) {
 		consoleExit(NULL);
@@ -27,8 +34,11 @@ int main(int argc, char **argv) {
         return 0;
     }
 	loadProfilesFromConsole(profs);
-	printf("Loading Ultimate Controller Tools...\n");
+	
 	initNetwork();
+	//nxlinkStdio();
+	printf("Loading Ultimate Controller Tools...\n");
+
 	showMainInfo();
 	
 	
@@ -36,21 +46,74 @@ int main(int argc, char **argv) {
     while(appletMainLoop())
     {
         //Scan all the inputs. This should be done once for each frame
-        hidScanInput();
+        padUpdate(&pad);
 
         //hidKeysDown returns information about which buttons have been just pressed (and they weren't in the previous frame)
-        u64 kDown = hidKeysDown(CONTROLLER_P1_AUTO);
-		if (kDown & KEY_UP) demoReadUCPAndWriteSave();
-    	if (kDown & KEY_DDOWN) demoWriteUCPFromConsole();
-    	if (kDown & KEY_LEFT) demoClearProfiles();
-    	if (kDown & KEY_RIGHT) demoShowUCPFileIfo();
-        if (kDown & KEY_PLUS) break; // break in order to return to hbmenu
+        u64 kDown = padGetButtonsDown(&pad);
+		if (kDown & HidNpadButton_AnyUp) demoReadUCPAndWriteSave();
+    	if (kDown & HidNpadButton_AnyDown) demoWriteUCPFromConsole();
+    	if (kDown & HidNpadButton_AnyLeft) demoClearProfiles();
+    	if (kDown & HidNpadButton_AnyRight) demoShowUCPFileIfo();
+        if (kDown & HidNpadButton_Plus) break; // break in order to return to hbmenu
 
         consoleUpdate(NULL);
     }
 	cleanNetwork();
 	consoleExit(NULL);
 	return 0;
+}
+
+/**
+ * @details Select from all loaded profiles
+ * @return the index of the selected profiles, or -1 if cancled
+ */
+int selectProfile() {
+	int index = 0;
+	while(true) {
+		consoleClear();
+		printf("Select a profile to dump (B to cancel):\n");
+		for(int i = 0; i < MAX_PROFILES; i++) {
+			if (profs[i].active) {
+				if (i == index) {
+					printf(">Profile %u: %s\n", i, profs[i].getNameAsString().c_str());
+				}
+				else {
+					printf(" Profile %u: %s\n", i, profs[i].getNameAsString().c_str());
+				}
+			}
+		}
+		padUpdate(&pad);
+		u64 kDown = padGetButtonsDown(&pad);
+		if ((kDown & HidNpadButton_AnyDown) && index < getLastProfileIndex()) {
+			index++;
+			while (true) {
+				if (!profs[index].active) {
+					index++;
+				}
+				else {
+					break;
+				}
+			}
+		}
+		if ((kDown & HidNpadButton_AnyUp) && index > 0) {
+			index--;
+			while (true) {
+				if (!profs[index].active) {
+					index--;
+				}
+				else {
+					break;
+				}
+			}
+		}
+		if (kDown & HidNpadButton_A) {
+			return index;	
+		}
+		if (kDown & HidNpadButton_B) {
+			return -1;
+		}
+		consoleUpdate(NULL);
+	}
 }
 
 void showMainInfo() {
@@ -115,14 +178,14 @@ void demoReadUCPAndWriteSave() {
 	printf("Press A to write UCPs to save.\n");
 	printf("Press B to cancel.\n");
 	while (true) {
-		hidScanInput();
-		u64 kDown = hidKeysDown(CONTROLLER_P1_AUTO);
-		if (kDown & KEY_B) {
+		padUpdate(&pad);
+		u64 kDown = padGetButtonsDown(&pad);
+		if (kDown & HidNpadButton_B) {
 			consoleClear();
 			showMainInfo();
 			return;
 		}
-		if (kDown & KEY_A) {
+		if (kDown & HidNpadButton_A) {
 			break;
 		}
 		consoleUpdate(NULL);
@@ -140,9 +203,9 @@ void demoReadUCPAndWriteSave() {
 	printf("Done, press A to continue");
 	
 	while (true) {
-		hidScanInput();
-        u64 kDown = hidKeysDown(CONTROLLER_P1_AUTO);
-		if (kDown & KEY_A)
+		padUpdate(&pad);
+        u64 kDown = padGetButtonsDown(&pad);
+		if (kDown & HidNpadButton_A)
 			break;
 		consoleUpdate(NULL);
 	}
@@ -168,9 +231,9 @@ void demoClearProfiles() {
 	}
 	printf("Successfully deleted all profiles. Press A to continue\n");
 	while (true) {
-		hidScanInput();
-        u64 kDown = hidKeysDown(CONTROLLER_P1_AUTO);
-		if (kDown & KEY_A)
+		padUpdate(&pad);
+        u64 kDown = padGetButtonsDown(&pad);
+		if (kDown & HidNpadButton_A)
 			break;
 		consoleUpdate(NULL);
 	}
@@ -179,7 +242,7 @@ void demoClearProfiles() {
 }
 
 void demoShowUCPFileIfo() {
-	std::string ucp = selectUCP();
+	std::string ucp = selectUCP(pad); //TODO: Move the input section to this file so I don't have this ugly pad code
 	if (ucp.empty()) {
 		showMainInfo();
 		printf("\nOperation cancled or no files found.");
@@ -192,9 +255,9 @@ void demoShowUCPFileIfo() {
 	}
 	printf("\n\nPress A to continue...");
 	while (true) {
-		hidScanInput();
-		u64 kDown = hidKeysDown(CONTROLLER_P1_AUTO);
-		if (kDown & KEY_A) break;
+		padUpdate(&pad);
+		u64 kDown = padGetButtonsDown(&pad);
+		if (kDown & HidNpadButton_A) break;
 		consoleUpdate(NULL);
 	}
 	showMainInfo();

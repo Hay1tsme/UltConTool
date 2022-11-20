@@ -172,6 +172,11 @@ Can be used completely offline and without a web server if need be
             document.body.removeChild(element);
             return;
         }
+
+        function load() {
+            // TODO: Load
+            alert("Not yet implemented");
+        }
     </script>
 </head>
 <body>
@@ -494,5 +499,6 @@ Can be used completely offline and without a web server if need be
 </table>
 <br>
 <input class="btn btn-primary" id="btnSub" type="submit" onclick="check()" value="Generate">
+<input class="btn btn-secondary" id="btnLoad" type="button" onclick="load()" value="Load">
 </body>
 </html>
